@@ -17,7 +17,7 @@
 
 
   
-  <meta property="og:url" content="/blog/writeups/amsi_ctf_2025_cavormice/">
+  <meta property="og:url" content="https://f0nduesav0yarde.github.io/blog/writeups/amsi_ctf_2025_cavormice/">
   <meta property="og:site_name" content="F0ndueSav0yarde">
   <meta property="og:title" content="AMSI CTF 2025 - Cavormice">
   <meta property="og:description" content="Cavormice">
@@ -96,14 +96,14 @@ I used <a href="https://github.com/NationalSecurityAgency/ghidra">Ghidra</a> and
 <p>I didn’t know where to start so i looked at memory mapping of gameboy from <a href="https://gbdev.io/pandocs/Memory_Map.html">gbdev</a>.</p>
 <p>It is said that WRAM has a mapped range of <code>0xC000 – 0xDFFF</code> : this is the internal RAM of the gameboy where all temporary data are stored. Maybe interesting stuff are saved here.</p>
 <p>I right clicked on the bgb screen to open the debugger, i looked at <code>0xc000</code> address (WRA0) and this is what i found out :</p>
-<p><img src="/blog/Writeups/images/amsi_ctf_2025_cavormice/memory_map_1.gif" alt="memory_map_1"></p>
+<p><img src="/images/writeups/amsi_ctf_2025_cavormice/memory_map_1.gif" alt="memory_map_1"></p>
 <ul>
 <li><code>0xc000</code> : Y position of little dude on screen</li>
 <li><code>0xc001</code> : X position of little dude on screen</li>
 <li><code>0xc002</code> : ON / OFF animation sprite
 Interesting… I used Ghidra to know all the references of <code>0xc000</code> and i saw that the address <code>0x0b55</code> wrote <code>DAT_c805</code> to <code>DAT_c000</code> :</li>
 </ul>
-<p><img src="/blog/Writeups/images/amsi_ctf_2025_cavormice/ghidra_decompile_1.png" alt="ghidra_decompile_1"></p>
+<p><img src="/images/writeups/amsi_ctf_2025_cavormice/ghidra_decompile_1.png" alt="ghidra_decompile_1"></p>
 <p>So it means that :</p>
 <ul>
 <li>Something is written in X position at <code>0xc805</code></li>
@@ -111,11 +111,11 @@ Interesting… I used Ghidra to know all the references of <code>0xc000</code> a
 </ul>
 <h2 id="uldr-array">ULDR array</h2>
 <p>I restarted the game and looked at <code>0xc800 - 0xc900</code> address range in debugger :
-<img src="/blog/Writeups/images/amsi_ctf_2025_cavormice/uldr_list.gif" alt="uldr_list"></p>
+<img src="/images/writeups/amsi_ctf_2025_cavormice/uldr_list.gif" alt="uldr_list"></p>
 <p>It seems that <code>0xc808</code> is the address of a movements array ! If we go up, the map changes and U is stored in this array.</p>
 <p>Because a value different of <code>0x00</code> is stored at <code>0xc828</code>, i assume that the array has a length of 32 bytes (probably the length of the flag inside <code>AMSI{...}</code> flag format).</p>
 <p>Let’s look at references of <code>0xc808</code> in Ghidra :</p>
-<p><img src="/blog/Writeups/images/amsi_ctf_2025_cavormice/ghidra_decompile_2.png" alt="ghidra_decompile_2"></p>
+<p><img src="/images/writeups/amsi_ctf_2025_cavormice/ghidra_decompile_2.png" alt="ghidra_decompile_2"></p>
 <p>Very cool informations in FUN_06fc function :</p>
 <ul>
 <li>Line 7 confirms that <code>0xc808</code> is an array and obviously <code>0xc838</code> is the index of the array (incremented at line 8).</li>
@@ -127,7 +127,7 @@ Interesting… I used Ghidra to know all the references of <code>0xc000</code> a
 <li><code>DAT_c838</code> : <code>index_of_ULDR_array</code></li>
 </ul>
 <p>Another function at <code>0x729</code> uses <code>ULDR_array</code> :</p>
-<p><img src="/blog/Writeups/images/amsi_ctf_2025_cavormice/ghidra_decompile_3.png" alt="ghidra_decompile_3"></p>
+<p><img src="/images/writeups/amsi_ctf_2025_cavormice/ghidra_decompile_3.png" alt="ghidra_decompile_3"></p>
 <p>Let me do some function cleaning :</p>
 
 
@@ -157,12 +157,12 @@ Interesting… I used Ghidra to know all the references of <code>0xc000</code> a
 <p>It means that DAT_c828 is the array that probably compares the flag, and FUN_0729 function is the final checking flag function.</p>
 <h2 id="winning-message">Winning message</h2>
 <p>To be sure of our assumption, let’s see all the references to <code>FUN_0729</code>.</p>
-<p><img src="/blog/Writeups/images/amsi_ctf_2025_cavormice/ghidra_decompile_4.png" alt="ghidra_decompile_4"></p>
+<p><img src="/images/writeups/amsi_ctf_2025_cavormice/ghidra_decompile_4.png" alt="ghidra_decompile_4"></p>
 <p>There are two calls of <code>FUN_0729</code> : <code>FUN_0789</code> and <code>FUN_09a7</code>.<br>
 Because <code>FUN_09a7</code> calls <code>FUN_0729</code> once without checking the return value, i assume that this is not the one we’re looking at. But <code>FUN_0789</code> does !</p>
 <p>Indeed, it compares the return value with 0x00 at line 89 (address <code>0x8ff</code>), and then does stuff.<br>
 So…. if i set PC register at <code>0x8ff</code>… i should get a winning message, right ?</p>
-<p><img src="/blog/Writeups/images/amsi_ctf_2025_cavormice/winning_message.gif" alt="winning_message"></p>
+<p><img src="/images/writeups/amsi_ctf_2025_cavormice/winning_message.gif" alt="winning_message"></p>
 <p>Bingo !</p>
 <p>Because we know that <code>FUN_0729</code> is cheking the flag, we have to look at <code>DAT_C828</code> array to retrieve the XORed key from the intended flag : <code>19 19 08 16 07 00 19 11 08 16 11 19 00 1e 07 11</code></p>
 <h2 id="retrieve-the-flag">Retrieve the flag</h2>

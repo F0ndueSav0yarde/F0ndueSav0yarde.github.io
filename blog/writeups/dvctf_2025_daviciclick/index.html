@@ -17,7 +17,7 @@
 
 
   
-  <meta property="og:url" content="/blog/writeups/dvctf_2025_daviciclick/">
+  <meta property="og:url" content="https://f0nduesav0yarde.github.io/blog/writeups/dvctf_2025_daviciclick/">
   <meta property="og:site_name" content="F0ndueSav0yarde">
   <meta property="og:title" content="DVCTF 2025 - Davinciclick">
   <meta property="og:description" content="Davinciclick">
@@ -80,7 +80,7 @@
 <p>You can find this writeup at <a href="https://phreaks2600.fr/blog/dvctf-2025-davinciclick/">Phreaks 2600 website</a></p>
 <h2 id="context">Context</h2>
 <p>This is a PE (made for Windows OS) game binary that was created using Unity game engine, called <strong>Davinciclick1.exe</strong> :</p>
-<p><img src="/blog/Writeups/images/dvctf_2025_davinciclick/chall_screenshot.png" alt="chall_screenshot"></p>
+<p><img src="/images/writeups/dvctf_2025_davinciclick/chall_screenshot.png" alt="chall_screenshot"></p>
 <p>We have to click 10 million times to get the flag.<br>
 Of course, an autoclicker won’t make it at time…</p>
 <h2 id="strategy">Strategy</h2>
@@ -95,15 +95,15 @@ If we modify this value into the memory, we can reduce the number of clicks and 
 <li>Value type : All</li>
 </ul>
 <p>Then click on <code>First scan</code> : you should see few addresses. Select them all and put them in the address list (by clicking on the red arrow) :</p>
-<p><img src="/blog/Writeups/images/dvctf_2025_davinciclick/cheat_engine_1.png" alt="cheat_engine_1"></p>
+<p><img src="/images/writeups/dvctf_2025_davinciclick/cheat_engine_1.png" alt="cheat_engine_1"></p>
 <p>Select all the adresses in the address list and right click to show the options. Then, click on <code>Change record &gt; Value</code> and put 5. You should see this :</p>
-<p><img src="/blog/Writeups/images/dvctf_2025_davinciclick/cheat_engine_2.png" alt="cheat_engine_2"></p>
+<p><img src="/images/writeups/dvctf_2025_davinciclick/cheat_engine_2.png" alt="cheat_engine_2"></p>
 <blockquote>
 <p>Notes : If the binary crashes it is completely normal because we “bruteforce” all the addresses that points to value 10000000 and it can be things important to the process (like pointers).<br>
 If it happens, don’t panic and launch the binary again: don’t forget to attach the new process in Cheat Engine.</p>
 </blockquote>
 <p>Now go back to the binary and click 6 times to retrieve the flag !</p>
-<p><img src="/blog/Writeups/images/dvctf_2025_davinciclick/flag.png" alt="flag"></p>
+<p><img src="/images/writeups/dvctf_2025_davinciclick/flag.png" alt="flag"></p>
 <script>
 
 
