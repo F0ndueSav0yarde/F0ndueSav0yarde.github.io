@@ -197,14 +197,13 @@ for(let i=0;i<all_codeblocks.length;i++)
     all_lines_of_a_codeblock = all_codeblocks[i].getElementsByClassName("line");
     let start_number = -1;
     start_number = parseInt(all_lines_of_a_codeblock[0].getElementsByTagName("span")[2].innerHTML,10);
-    all_lines_of_a_codeblock[0].style.display = "none";
+    all_lines_of_a_codeblock[0].style.display = "none";    
     for(let line=1;line<all_lines_of_a_codeblock.length;line++)
     {
-        let max_len = Math.log10(String(all_lines_of_a_codeblock.length).length)
-        let current_len = Math.log10(String(start_number).length)
-        if(Math.ceil(max_len) - Math.ceil(current_len) > 0)
+        let diff = String(all_lines_of_a_codeblock.length).length - String(start_number).length;
+        if(diff > 0)
         {
-            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number) + "<span style='visibility:hidden;'>" + "0".repeat(Math.ceil(max_len) - Math.ceil(current_len)) + "</span>";
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = "<span style='visibility:hidden;'>" + "0".repeat(diff) + "</span>" + String(start_number);
         }
         else
         {

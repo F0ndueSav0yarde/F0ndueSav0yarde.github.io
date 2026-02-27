@@ -2,6 +2,9 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
+    <loc>https://f0nduesav0yarde.github.io/</loc>
+    <lastmod>2024-01-14T07:07:07+01:00</lastmod>
+  </url><url>
     <loc>https://f0nduesav0yarde.github.io/blog/writeups/asmi_ctf_2025_ahahah_you_didnt_say_the_magic_word/</loc>
     <lastmod>2024-01-14T07:07:07+01:00</lastmod>
   </url><url>
@@ -17,9 +20,6 @@
     <loc>https://f0nduesav0yarde.github.io/blog/writeups/dvctf_2025_monalishack/</loc>
     <lastmod>2024-01-14T07:07:07+01:00</lastmod>
   </url><url>
-    <loc>https://f0nduesav0yarde.github.io/</loc>
-    <lastmod>2024-01-14T07:07:07+01:00</lastmod>
-  </url><url>
     <loc>https://f0nduesav0yarde.github.io/blog/writeups/fcsc_2025_bigorneau/</loc>
     <lastmod>2024-01-14T07:07:07+01:00</lastmod>
   </url><url>
@@ -27,6 +27,15 @@
     <lastmod>2024-01-14T07:07:07+01:00</lastmod>
   </url><url>
     <loc>https://f0nduesav0yarde.github.io/blog/writeups/fcsc_2025_small_prime_numbers/</loc>
+    <lastmod>2024-01-14T07:07:07+01:00</lastmod>
+  </url><url>
+    <loc>https://f0nduesav0yarde.github.io/blog/writeups/l3akctf_2024_oorrww/</loc>
+    <lastmod>2024-01-14T07:07:07+01:00</lastmod>
+  </url><url>
+    <loc>https://f0nduesav0yarde.github.io/blog/writeups/l3akctf_2024_oorrww_revenge/</loc>
+    <lastmod>2024-01-14T07:07:07+01:00</lastmod>
+  </url><url>
+    <loc>https://f0nduesav0yarde.github.io/blog/writeups/swampctf_2025_tinybrain/</loc>
     <lastmod>2024-01-14T07:07:07+01:00</lastmod>
   </url><url>
     <loc>https://f0nduesav0yarde.github.io/blog/vulnerabilities/cve-2026-28207/</loc>

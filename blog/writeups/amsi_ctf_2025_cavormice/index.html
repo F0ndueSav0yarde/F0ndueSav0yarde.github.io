@@ -110,8 +110,8 @@ Interesting… I used Ghidra to know all the references of <code>0xc000</code> a
 <li>I have to look at <code>0xc800 - 0xc900</code> address range because it seems that there is some data too</li>
 </ul>
 <h2 id="uldr-array">ULDR array</h2>
-<p>I restarted the game and looked at <code>0xc800 - 0xc900</code> address range in debugger :
-<img src="/images/writeups/amsi_ctf_2025_cavormice/uldr_list.gif" alt="uldr_list"></p>
+<p>I restarted the game and looked at <code>0xc800 - 0xc900</code> address range in debugger :</p>
+<p><img src="/images/writeups/amsi_ctf_2025_cavormice/uldr_list.gif" alt="uldr_list"></p>
 <p>It seems that <code>0xc808</code> is the address of a movements array ! If we go up, the map changes and U is stored in this array.</p>
 <p>Because a value different of <code>0x00</code> is stored at <code>0xc828</code>, i assume that the array has a length of 32 bytes (probably the length of the flag inside <code>AMSI{...}</code> flag format).</p>
 <p>Let’s look at references of <code>0xc808</code> in Ghidra :</p>
@@ -313,14 +313,13 @@ for(let i=0;i<all_codeblocks.length;i++)
     all_lines_of_a_codeblock = all_codeblocks[i].getElementsByClassName("line");
     let start_number = -1;
     start_number = parseInt(all_lines_of_a_codeblock[0].getElementsByTagName("span")[2].innerHTML,10);
-    all_lines_of_a_codeblock[0].style.display = "none";
+    all_lines_of_a_codeblock[0].style.display = "none";    
     for(let line=1;line<all_lines_of_a_codeblock.length;line++)
     {
-        let max_len = Math.log10(String(all_lines_of_a_codeblock.length).length)
-        let current_len = Math.log10(String(start_number).length)
-        if(Math.ceil(max_len) - Math.ceil(current_len) > 0)
+        let diff = String(all_lines_of_a_codeblock.length).length - String(start_number).length;
+        if(diff > 0)
         {
-            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number) + "<span style='visibility:hidden;'>" + "0".repeat(Math.ceil(max_len) - Math.ceil(current_len)) + "</span>";
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = "<span style='visibility:hidden;'>" + "0".repeat(diff) + "</span>" + String(start_number);
         }
         else
         {
