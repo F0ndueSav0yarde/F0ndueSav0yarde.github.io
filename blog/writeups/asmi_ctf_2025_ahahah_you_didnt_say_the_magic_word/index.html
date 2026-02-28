@@ -41,7 +41,7 @@
   <meta itemprop="description" content="Ahahah ! You didn&#39;t say the magic word">
   <meta itemprop="datePublished" content="2024-01-14T07:07:07+01:00">
   <meta itemprop="dateModified" content="2024-01-14T07:07:07+01:00">
-  <meta itemprop="wordCount" content="383">
+  <meta itemprop="wordCount" content="386">
 
 <meta name="referrer" content="no-referrer-when-downgrade" />
 
@@ -78,7 +78,8 @@
 
 
 <content>
-  <p><strong>Category : PWN</strong></p>
+  <p><strong>Category : PWN</strong><br>
+<strong>Difficulty : TOKEN_35</strong></p>
 <h2 id="phreaks-2600">Phreaks 2600</h2>
 <p>You can find this writeup at <a href="https://phreaks2600.fr/blog/amsi-ctf-2025-magic-words/">Phreaks 2600 website</a></p>
 <h2 id="vulnerability">Vulnerability</h2>
@@ -212,6 +213,56 @@ for(let i=0;i<all_codeblocks.length;i++)
         start_number = start_number + 1;
     }
 }
+</script>
+
+<style>
+    progress {
+        appearance: none;
+        -webkit-appearance: none;
+        width:100px;
+        height:14px;
+        margin-bottom: 1px;
+    }
+    progress::-webkit-progress-bar {
+        background-color: #0f0f0f;
+    }
+
+    .progress-high::-webkit-progress-value { background-color: rgb(210, 0, 28); }
+    .progress-high::-webkit-progress-bar { border: 1px solid rgb(210, 0, 28);}
+    .progress-mid::-webkit-progress-value { background-color: rgb(212, 67, 0); }
+    .progress-mid::-webkit-progress-bar { border: 1px solid rgb(212, 67, 0); }
+    .progress-low::-webkit-progress-value { background-color: rgb(184, 178, 0); }
+    .progress-low::-webkit-progress-bar { border: 1px solid rgb(184, 178, 0); }
+    .progress-verylow::-webkit-progress-value { background-color: #008b07; }
+    .progress-verylow::-webkit-progress-bar { border: 1px solid #008b07; }
+
+    .progress-high::-moz-progress-bar { background-color: rgb(210, 0, 28); }
+    .progress-mid::-moz-progress-bar { background-color: rgb(212, 67, 0); }
+    .progress-low::-moz-progress-bar { background-color: rgb(184, 178, 0); }
+    .progress-verylow::-moz-progress-bar { background-color: #008b07; }
+    .progress-high { border: 1px solid rgb(210, 0, 28); background-color: #0f0f0f;}
+    .progress-mid { border: 1px solid rgb(212, 67, 0); background-color: #0f0f0f; }
+    .progress-low { border: 1px solid rgb(184, 178, 0); background-color: #0f0f0f;}
+    .progress-verylow { border: 1px solid #008b07; background-color: #0f0f0f;}
+</style>
+
+<script>
+    let all_content = document.getElementsByTagName("content")[0];
+    let all_strong = all_content.getElementsByTagName("strong")
+    if(all_strong.length > 1)
+    {
+        if(all_strong[1].innerHTML.slice(0,19) == "Difficulty : TOKEN_")
+        {
+            let difficulty = parseInt(all_strong[1].innerHTML.slice(19), 10);
+            all_strong[1].innerHTML = "Difficulty : ";
+            let progress_class = "";
+            if(difficulty>=0 && difficulty<=24){progress_class = "progress-verylow";}
+            else if(difficulty>=25 && difficulty<=49){progress_class = "progress-low";}
+            else if(difficulty>=50 && difficulty<=74){progress_class = "progress-mid";}
+            else if(difficulty>=75 && difficulty<=100){progress_class = "progress-high";}
+            all_strong[1].innerHTML = all_strong[1].innerHTML + "<progress class="+progress_class+" id='file' value='"+difficulty+"' max='100'></progress>";
+        }
+    }
 </script>
 
 </content>
