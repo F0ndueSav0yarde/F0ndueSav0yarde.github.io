@@ -204,6 +204,26 @@ for(let i=0;i<all_codeblocks.length;i++)
             all_strong[1].innerHTML = all_strong[1].innerHTML + "<progress class="+progress_class+" id='file' value='"+difficulty+"' max='100'></progress>";
         }
     }
+
+    let all_h2 = document.getElementsByTagName("h2");
+    let main_title = document.getElementsByTagName("h1")[1];
+    let divToC = document.createElement("div")
+    divToC.id = "tableOfContent";
+    divToC.style = "color: rgb(255, 0, 85);padding:15px;list-style:none;border: 1px solid rgb(255, 0, 85);";
+
+    for(let i=0;i<all_h2.length;i++)
+    {
+        divToC.innerHTML += "<li><a href='"+window.location.href+"#"+all_h2[i].id+"' style='color: rgb(255, 0, 85);text-decoration:none;'>"+all_h2[i].innerText+"</a></li>";
+    }
+
+    main_title.parentNode.insertBefore(divToC, main_title.nextSibling);
+
+    const ToCtitle = document.createElement('h2');
+    ToCtitle.textContent = 'Table of Contents';
+    ToCtitle.style = 'color: rgb(255, 0, 85);';
+
+    divToC.parentNode.insertBefore(ToCtitle, divToC);
+
 </script>
 
 </content>
