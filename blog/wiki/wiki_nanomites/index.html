@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta http-equiv="X-Clacks-Overhead" content="GNU Terry Pratchett" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>INT3 isn’t a breakpoint : it’s just a nanomite saying hello | F0ndueSav0yarde</title>
+<meta name="title" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello" />
+<meta name="description" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello" />
+<meta name="author" content="" />
+<meta name="keywords" content="" />
+
+
+
+
+
+
+  
+  <meta property="og:url" content="https://f0nduesav0yarde.github.io/blog/wiki/wiki_nanomites/">
+  <meta property="og:site_name" content="F0ndueSav0yarde">
+  <meta property="og:title" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello">
+  <meta property="og:description" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="blog">
+
+
+  
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello">
+  <meta name="twitter:description" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello">
+
+
+  
+  
+  <meta itemprop="name" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello">
+  <meta itemprop="description" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello">
+  <meta itemprop="wordCount" content="786">
+
+<meta name="referrer" content="no-referrer-when-downgrade" />
+
+  
+  <link href="/original.min.css" rel="stylesheet">
+
+  
+    
+    <link href="/syntax.min.css" rel="stylesheet">
+  
+
+  
+
+  
+</head>
+
+<body>
+  <header><a class="skip-link" href="#main-content">Skip to main content</a>
+
+<a href="/" class="title"><h1>F0ndueSav0yarde</h1></a>
+<nav>
+
+
+
+
+
+
+
+</nav>
+</header>
+  <main id="main-content">
+
+<h1>INT3 isn’t a breakpoint : it’s just a nanomite saying hello</h1>
+
+
+<content>
+  <h2 id="have-you-ever-heard-about-nanomites-">Have you ever heard about nanomites ?</h2>
+<p>The main concept of <strong>Nanomites</strong> is about an anti-debug technique where :</p>
+<ul>
+<li>A process forks himself to create a <strong>child</strong>.</li>
+<li>The <strong>parent</strong> behaves like a debugger for the <strong>child</strong> and can modify its memory and registers</li>
+<li>Theses two processes communicate with each other by sending <strong>signals</strong> (from crashes or breakpoints)</li>
+</ul>
+<blockquote>
+<p>It is considered as an anti-debug technique because on Linux, only one tracer per process at a time is allowed. It is impossible to trace / debug the child.</p>
+</blockquote>
+<h2 id="how-does-it-work-">How does it work ?</h2>
+<p>Let&rsquo;s clarify this with a diagram :</p>
+<p><img src="/images/wiki/wiki_nanomites/nanomites_diagram.png" alt="nanomites_diagram"></p>
+<ul>
+<li><strong>Step 1</strong> : The <strong>parent</strong> process forks itself to spawn a <strong>child</strong> process with <code>fork()</code> syscall/LIBC function</li>
+<li><strong>Step 2</strong> : The <strong>child</strong> process allows its <strong>parent</strong> to trace it using <code>ptrace(PTRACE_TRACEME)</code> : no any other process can trace the <strong>child</strong> since the <strong>parent</strong> acts like a debugger</li>
+<li><strong>Step 3</strong> : The <strong>parent</strong> process waits to receive any signal from the <strong>child</strong> using <code>waitpid()</code></li>
+<li><strong>Step 4</strong> : The <strong>child</strong> deliberately crashes itself or triggers a breakpoint, sending a signal to the <strong>parent</strong></li>
+</ul>
+<blockquote>
+<p>An example of signal sent can be <strong>SIGTRAP</strong> (from <code>int3</code> breakpoint instruction), <strong>SIGINT</strong> (which is often interrupt from keyboard <code>Ctrl+C</code>), <strong>SIGILL</strong> (illegal instruction), <strong>SIGSEGV</strong> (segmentation fault) and more&hellip;<br>
+To learn more about POSIX signals, see the <a href="https://www.man7.org/linux/man-pages/man7/signal.7.html">signal(7) man page</a></p>
+</blockquote>
+<ul>
+<li><strong>Step 5</strong> : The <strong>parent</strong> receives the signal and modifies the <strong>child&rsquo;s</strong> memory and registers using <code>ptrace(PTRACE_SETREGS)</code>. The <strong>child</strong> is stopped while the parent performs this modification</li>
+<li><strong>Step 6</strong> : Once the <strong>parent</strong> has finished its work, it resumes the <strong>child</strong> using <code>ptrace(PTRACE_CONT)</code> and then goes into waiting mode with <code>waitpid()</code></li>
+<li><strong>Step 7</strong> : Repeat the cycle from <strong>Step 4</strong></li>
+</ul>
+<h2 id="example-of-nanomites">Example of nanomites</h2>
+<p>Here is a basic example of using nanomites to decrypt and execute an encrypted command :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="ln"> 3</span><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="ln"> 4</span><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;sys/ptrace.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="ln"> 5</span><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;sys/types.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="ln"> 6</span><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;sys/wait.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="ln"> 7</span><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;sys/user.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="ln"> 8</span><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="ln"> 9</span><span class="cl">
+</span></span><span class="line"><span class="ln">10</span><span class="cl"><span class="kt">int</span> <span class="n">status</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl"><span class="k">struct</span> <span class="n">user_regs_struct</span> <span class="n">regs</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl"><span class="kt">pid_t</span> <span class="n">pid</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">
+</span></span><span class="line"><span class="ln">14</span><span class="cl"><span class="k">static</span> <span class="kt">void</span> <span class="nf">child_run</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="c1">// child process will run this function
+</span></span></span><span class="line"><span class="ln">15</span><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">    <span class="nf">ptrace</span><span class="p">(</span><span class="n">PTRACE_TRACEME</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="c1">// let the parent trace the child
+</span></span></span><span class="line"><span class="ln">17</span><span class="cl">    <span class="kt">char</span> <span class="n">buffer</span><span class="p">[</span><span class="mi">19</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="mi">91</span><span class="p">,</span><span class="mi">110</span><span class="p">,</span><span class="mi">123</span><span class="p">,</span><span class="mi">108</span><span class="p">,</span><span class="mi">111</span><span class="p">,</span><span class="mi">60</span><span class="p">,</span><span class="mi">40</span><span class="p">,</span><span class="mi">61</span><span class="p">,</span><span class="mi">123</span><span class="p">,</span><span class="mi">108</span><span class="p">,</span><span class="mi">96</span><span class="p">,</span><span class="mi">39</span><span class="p">,</span><span class="mi">106</span><span class="p">,</span><span class="mi">97</span><span class="p">,</span><span class="mi">102</span><span class="p">,</span><span class="mi">39</span><span class="p">,</span><span class="mi">97</span><span class="p">,</span><span class="mi">108</span><span class="p">};</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">    <span class="k">register</span> <span class="kt">long</span> <span class="n">r8</span> <span class="k">asm</span><span class="p">(</span><span class="s">&#34;r8&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl">
+</span></span><span class="line"><span class="ln">20</span><span class="cl">    <span class="k">asm</span><span class="p">(</span><span class="s">&#34;xor rdx,rdx; div rdx&#34;</span><span class="p">);</span> <span class="c1">// trigger SIGFPE because division by 0
+</span></span></span><span class="line"><span class="ln">21</span><span class="cl">    <span class="k">for</span><span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="n">i</span><span class="o">&lt;</span><span class="mi">18</span><span class="p">;</span><span class="n">i</span><span class="o">++</span><span class="p">){</span><span class="n">buffer</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">^=</span><span class="n">r8</span><span class="p">;}</span> <span class="c1">// decrypt buffer using r8 as a key
+</span></span></span><span class="line"><span class="ln">22</span><span class="cl">    <span class="n">r8</span><span class="o">=</span><span class="p">(</span><span class="kt">unsigned</span> <span class="kt">long</span> <span class="kt">long</span><span class="p">)</span><span class="n">buffer</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">23</span><span class="cl">    <span class="k">asm</span><span class="p">(</span><span class="s">&#34;mov rdi,r8; mov rax,[0xdeadbeef];&#34;</span><span class="p">);</span> <span class="c1">// trigger SIGSEGV because 0xdeadbeef address is not mapped
+</span></span></span><span class="line"><span class="ln">24</span><span class="cl">    <span class="k">asm</span><span class="p">(</span><span class="s">&#34;int3&#34;</span><span class="p">);</span> <span class="c1">// trigger SIGTRAP because int3 instruction acts as a breakpoint
+</span></span></span><span class="line"><span class="ln">25</span><span class="cl">    <span class="k">asm</span><span class="p">(</span><span class="s">&#34;syscall&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="ln">26</span><span class="cl">    <span class="nf">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="ln">27</span><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="ln">28</span><span class="cl">
+</span></span><span class="line"><span class="ln">29</span><span class="cl"><span class="k">static</span> <span class="kt">void</span> <span class="nf">parent_trace</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="c1">// parent process will run this function
+</span></span></span><span class="line"><span class="ln">30</span><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="ln">31</span><span class="cl">    <span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="ln">32</span><span class="cl">        <span class="nf">ptrace</span><span class="p">(</span><span class="n">PTRACE_CONT</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="c1">// let the child resume its execution after crash / breakpoint
+</span></span></span><span class="line"><span class="ln">33</span><span class="cl">        <span class="nf">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">status</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="c1">// wait for a signal from the child
+</span></span></span><span class="line"><span class="ln">34</span><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="nf">WIFEXITED</span><span class="p">(</span><span class="n">status</span><span class="p">))</span> <span class="p">{</span> <span class="c1">// if the child exited, the parent can exit too
+</span></span></span><span class="line"><span class="ln">35</span><span class="cl">            <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">36</span><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="ln">37</span><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="nf">WIFSTOPPED</span><span class="p">(</span><span class="n">status</span><span class="p">)){</span> 
+</span></span><span class="line"><span class="ln">38</span><span class="cl">            <span class="kt">int</span> <span class="n">signal</span> <span class="o">=</span> <span class="nf">WSTOPSIG</span><span class="p">(</span><span class="n">status</span><span class="p">);</span> <span class="c1">// get integer value of the signal
+</span></span></span><span class="line"><span class="ln">39</span><span class="cl">            <span class="nf">ptrace</span><span class="p">(</span><span class="n">PTRACE_GETREGS</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">regs</span><span class="p">);</span> <span class="c1">// get child registers
+</span></span></span><span class="line"><span class="ln">40</span><span class="cl">            <span class="k">switch</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">41</span><span class="cl">            <span class="p">{</span>
+</span></span><span class="line"><span class="ln">42</span><span class="cl">                <span class="k">case</span> <span class="nl">SIGTRAP</span><span class="p">:</span>
+</span></span><span class="line"><span class="ln">43</span><span class="cl">                    <span class="n">regs</span><span class="p">.</span><span class="n">rax</span> <span class="o">=</span> <span class="mi">59</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">44</span><span class="cl">                    <span class="n">regs</span><span class="p">.</span><span class="n">rsi</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">45</span><span class="cl">                    <span class="n">regs</span><span class="p">.</span><span class="n">rdx</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">46</span><span class="cl">                    <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">47</span><span class="cl">                <span class="k">case</span> <span class="nl">SIGSEGV</span><span class="p">:</span>
+</span></span><span class="line"><span class="ln">48</span><span class="cl">                    <span class="n">regs</span><span class="p">.</span><span class="n">rdi</span> <span class="o">+=</span> <span class="n">SIGSEGV</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">49</span><span class="cl">                    <span class="n">regs</span><span class="p">.</span><span class="n">rip</span> <span class="o">+=</span> <span class="mi">10</span><span class="p">;</span> <span class="c1">// 10 is added to RIP because &#34;mov rax,[0xdeadbeef]&#34; instruction is 10 bytes length
+</span></span></span><span class="line"><span class="ln">50</span><span class="cl">                    <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">51</span><span class="cl">                <span class="k">case</span> <span class="nl">SIGFPE</span><span class="p">:</span>
+</span></span><span class="line"><span class="ln">52</span><span class="cl">                    <span class="n">regs</span><span class="p">.</span><span class="n">r8</span> <span class="o">=</span> <span class="n">SIGFPE</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">53</span><span class="cl">                    <span class="n">regs</span><span class="p">.</span><span class="n">rip</span> <span class="o">+=</span> <span class="mi">2</span><span class="p">;</span> <span class="c1">// 2 is added to RIP because &#34;div rdx&#34; instruction is 2 bytes length
+</span></span></span><span class="line"><span class="ln">54</span><span class="cl">                    <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">55</span><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="ln">56</span><span class="cl">            <span class="nf">ptrace</span><span class="p">(</span><span class="n">PTRACE_SETREGS</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">regs</span><span class="p">);</span> <span class="c1">// set child registers
+</span></span></span><span class="line"><span class="ln">57</span><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="ln">58</span><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="ln">59</span><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="ln">60</span><span class="cl">
+</span></span><span class="line"><span class="ln">61</span><span class="cl"><span class="kt">void</span> <span class="nf">main</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">62</span><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="ln">63</span><span class="cl">    <span class="n">pid</span> <span class="o">=</span> <span class="nf">fork</span><span class="p">();</span> <span class="c1">// fork parent process to spawn child process
+</span></span></span><span class="line"><span class="ln">64</span><span class="cl">    <span class="p">(</span><span class="n">pid</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">?</span> <span class="nf">child_run</span><span class="p">()</span> <span class="o">:</span> <span class="nf">parent_trace</span><span class="p">();</span>
+</span></span><span class="line"><span class="ln">65</span><span class="cl"><span class="p">}</span></span></span></code></pre></div><p>After compiling, let&rsquo;s execute this binary :</p>
+<p><img src="/images/wiki/wiki_nanomites/execution.png" alt="execution"></p>
+<p>Here is the diagram of what&rsquo;s happening in the code :</p>
+<p><img src="/images/wiki/wiki_nanomites/example_diagram.png" alt="example_diagram"></p>
+<p>Sounds complicated but it is not :</p>
+<ul>
+<li>The <strong>parent</strong> process modifies <strong>child</strong> registers depending on which signal is sent by the <strong>child</strong> : <code>SIGTRAP</code>, <code>SIGSEGV</code> and <code>SIGFPE</code></li>
+<li>The <strong>child</strong> process decrypts the buffer using <code>R8</code> register as the key (<code>R8 = SIGFPE = 8</code>)</li>
+<li>The <strong>child</strong> process calls <code>syscall(59, buffer+11, NULL, NULL)</code> which is <code>execve(buffer+11, NULL, NULL)</code></li>
+</ul>
+<p>But what is <code>buffer+11</code> ?</p>
+<p><img src="/images/wiki/wiki_nanomites/python_calculus.png" alt="python_calculus"></p>
+<h2 id="not-debuggable-">Not debuggable ?</h2>
+<p>Let&rsquo;s try to debug this program using <code>strace</code> :</p>
+<p><img src="/images/wiki/wiki_nanomites/strace.png" alt="strace"></p>
+<p>It is still possible to see registers value when using <code>PTRACE_SETREGS</code> from <strong>parent</strong> process but it doesn&rsquo;t show <code>execve</code> called from <strong>child</strong>.</p>
+<blockquote>
+<p>Of course, this example is easy with few lines of code but imagine reversing hundreds of nanomites&hellip;</p>
+</blockquote>
+<p>When debugging using <code>gdb</code> :</p>
+<p><img src="/images/wiki/wiki_nanomites/gdb.png" alt="gdb"></p>
+<p>The debugging stops after the first signal because <code>gdb</code> uses <code>ptrace</code> itself, which conflicts with the <strong>parent&rsquo;s</strong> <code>ptrace</code> control of the <strong>child</strong>.</p>
+<p>Debugging the <strong>child</strong> process is hard. But debugging the <strong>parent</strong> process is still possible.</p>
+<script>
+
+
+</script>
+
+<script>
+var all_codeblocks = document.getElementsByClassName("chroma")
+for(let i=0;i<all_codeblocks.length;i++)
+{
+    all_lines_of_a_codeblock = all_codeblocks[i].getElementsByClassName("line");
+    let start_number = -1;
+    start_number = parseInt(all_lines_of_a_codeblock[0].getElementsByTagName("span")[2].innerHTML,10);
+    all_lines_of_a_codeblock[0].style.display = "none";    
+    for(let line=1;line<all_lines_of_a_codeblock.length;line++)
+    {
+        let diff = String(all_lines_of_a_codeblock.length).length - String(start_number).length;
+        if(diff > 0)
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = "<span style='visibility:hidden;'>" + "0".repeat(diff) + "</span>" + String(start_number);
+        }
+        else
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number);
+        }
+        start_number = start_number + 1;
+    }
+}
+</script>
+
+<style>
+    progress {
+        appearance: none;
+        -webkit-appearance: none;
+        width:100px;
+        height:14px;
+        margin-bottom: 1px;
+    }
+    progress::-webkit-progress-bar {
+        background-color: #0f0f0f;
+    }
+
+    .progress-high::-webkit-progress-value { background-color: rgb(210, 0, 28); }
+    .progress-high::-webkit-progress-bar { border: 1px solid rgb(210, 0, 28);}
+    .progress-mid::-webkit-progress-value { background-color: rgb(212, 67, 0); }
+    .progress-mid::-webkit-progress-bar { border: 1px solid rgb(212, 67, 0); }
+    .progress-low::-webkit-progress-value { background-color: rgb(184, 178, 0); }
+    .progress-low::-webkit-progress-bar { border: 1px solid rgb(184, 178, 0); }
+    .progress-verylow::-webkit-progress-value { background-color: #008b07; }
+    .progress-verylow::-webkit-progress-bar { border: 1px solid #008b07; }
+
+    .progress-high::-moz-progress-bar { background-color: rgb(210, 0, 28); }
+    .progress-mid::-moz-progress-bar { background-color: rgb(212, 67, 0); }
+    .progress-low::-moz-progress-bar { background-color: rgb(184, 178, 0); }
+    .progress-verylow::-moz-progress-bar { background-color: #008b07; }
+    .progress-high { border: 1px solid rgb(210, 0, 28); background-color: #0f0f0f;}
+    .progress-mid { border: 1px solid rgb(212, 67, 0); background-color: #0f0f0f; }
+    .progress-low { border: 1px solid rgb(184, 178, 0); background-color: #0f0f0f;}
+    .progress-verylow { border: 1px solid #008b07; background-color: #0f0f0f;}
+</style>
+
+<script>
+    let all_content = document.getElementsByTagName("content")[0];
+    let all_strong = all_content.getElementsByTagName("strong")
+    if(all_strong.length > 1)
+    {
+        if(all_strong[1].innerHTML.slice(0,19) == "Difficulty : TOKEN_")
+        {
+            let difficulty = parseInt(all_strong[1].innerHTML.slice(19), 10);
+            all_strong[1].innerHTML = "Difficulty : ";
+            let progress_class = "";
+            if(difficulty>=0 && difficulty<=24){progress_class = "progress-verylow";}
+            else if(difficulty>=25 && difficulty<=49){progress_class = "progress-low";}
+            else if(difficulty>=50 && difficulty<=74){progress_class = "progress-mid";}
+            else if(difficulty>=75 && difficulty<=100){progress_class = "progress-high";}
+            all_strong[1].innerHTML = all_strong[1].innerHTML + "<progress class="+progress_class+" id='file' value='"+difficulty+"' max='100'></progress>";
+        }
+    }
+
+    let all_h2 = document.getElementsByTagName("h2");
+    let main_title = document.getElementsByTagName("h1")[1];
+    let divToC = document.createElement("div")
+    divToC.id = "tableOfContent";
+    divToC.style = "color: rgb(255, 0, 85);padding:15px;list-style:none;border: 1px solid rgb(255, 0, 85);";
+
+    for(let i=0;i<all_h2.length;i++)
+    {
+        divToC.innerHTML += "<li><a href='"+window.location.href+"#"+all_h2[i].id+"' style='color: rgb(255, 0, 85);text-decoration:none;'>"+all_h2[i].innerText+"</a></li>";
+    }
+
+    main_title.parentNode.insertBefore(divToC, main_title.nextSibling);
+
+    const ToCtitle = document.createElement('h2');
+    ToCtitle.textContent = 'Table of Contents';
+    ToCtitle.style = 'color: rgb(255, 0, 85);';
+
+    divToC.parentNode.insertBefore(ToCtitle, divToC);
+
+</script>
+
+</content>
+<p>
+  
+</p>
+
+
+
+
+  </main>
+  <footer></footer>
+
+    
+</body>
+
+</html>
