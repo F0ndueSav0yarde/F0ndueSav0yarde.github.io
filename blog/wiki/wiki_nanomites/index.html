@@ -37,7 +37,7 @@
   
   <meta itemprop="name" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello">
   <meta itemprop="description" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello">
-  <meta itemprop="wordCount" content="786">
+  <meta itemprop="wordCount" content="1150">
 
 <meta name="referrer" content="no-referrer-when-downgrade" />
 
@@ -196,6 +196,93 @@ To learn more about POSIX signals, see the <a href="https://www.man7.org/linux/m
 <p><img src="/images/wiki/wiki_nanomites/gdb.png" alt="gdb"></p>
 <p>The debugging stops after the first signal because <code>gdb</code> uses <code>ptrace</code> itself, which conflicts with the <strong>parent&rsquo;s</strong> <code>ptrace</code> control of the <strong>child</strong>.</p>
 <p>Debugging the <strong>child</strong> process is hard. But debugging the <strong>parent</strong> process is still possible.</p>
+<h2 id="dynamic-and-partial-analysis-of-nanomites-parent-perspective">Dynamic and partial analysis of nanomites (parent perspective)</h2>
+<p><code>frida-trace</code> could help us knowing which <strong>child</strong> process registers were modified between <code>PTRACE_GETREGS</code> and <code>PTRACE_SETREGS</code> using this script (to write inside <code>__handlers__/libc.so.6/ptrace.js</code>):</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Js" data-lang="Js"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="mi">1</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="c1">// https://elixir.bootlin.com/linux/v4.7/source/arch/x86/include/asm/user_64.h#L68
+</span></span></span><span class="line"><span class="ln"> 3</span><span class="cl"><span class="kd">let</span> <span class="nx">all_registers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&#34;r15&#34;</span><span class="o">:</span><span class="mi">0</span><span class="p">,</span><span class="s2">&#34;r14&#34;</span><span class="o">:</span><span class="mi">8</span><span class="p">,</span><span class="s2">&#34;r13&#34;</span><span class="o">:</span><span class="mh">0x10</span><span class="p">,</span><span class="s2">&#34;r12&#34;</span><span class="o">:</span><span class="mh">0x18</span><span class="p">,</span><span class="s2">&#34;rbp&#34;</span><span class="o">:</span><span class="mh">0x20</span><span class="p">,</span><span class="s2">&#34;rbx&#34;</span><span class="o">:</span><span class="mh">0x28</span><span class="p">,</span><span class="s2">&#34;r11&#34;</span><span class="o">:</span><span class="mh">0x30</span><span class="p">,</span><span class="s2">&#34;r10&#34;</span><span class="o">:</span><span class="mh">0x38</span><span class="p">,</span><span class="s2">&#34;r9&#34;</span><span class="o">:</span><span class="mh">0x40</span><span class="p">,</span><span class="s2">&#34;r8&#34;</span><span class="o">:</span><span class="mh">0x48</span><span class="p">,</span><span class="s2">&#34;rax&#34;</span><span class="o">:</span><span class="mh">0x50</span><span class="p">,</span><span class="s2">&#34;rcx&#34;</span><span class="o">:</span><span class="mh">0x58</span><span class="p">,</span><span class="s2">&#34;rdx&#34;</span><span class="o">:</span><span class="mh">0x60</span><span class="p">,</span><span class="s2">&#34;rsi&#34;</span><span class="o">:</span><span class="mh">0x68</span><span class="p">,</span><span class="s2">&#34;rdi&#34;</span><span class="o">:</span><span class="mh">0x70</span><span class="p">,</span><span class="s2">&#34;orig_rax&#34;</span><span class="o">:</span><span class="mh">0x78</span><span class="p">,</span><span class="s2">&#34;rip&#34;</span><span class="o">:</span><span class="mh">0x80</span><span class="p">,</span><span class="s2">&#34;cs&#34;</span><span class="o">:</span><span class="mh">0x88</span><span class="p">,</span><span class="s2">&#34;eflags&#34;</span><span class="o">:</span><span class="mh">0x90</span><span class="p">,</span><span class="s2">&#34;rsp&#34;</span><span class="o">:</span><span class="mh">0x98</span><span class="p">,</span><span class="s2">&#34;ss&#34;</span><span class="o">:</span><span class="mh">0xa0</span><span class="p">};</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl"><span class="kd">let</span> <span class="nx">saved_getregs</span> <span class="o">=</span> <span class="p">{};</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl"><span class="kd">let</span> <span class="nx">pending_getregs_ptr</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl"><span class="nx">defineHandler</span><span class="p">({</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">  <span class="nx">onEnter</span><span class="p">(</span><span class="nx">log</span><span class="p">,</span> <span class="nx">args</span><span class="p">,</span> <span class="nx">state</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">    <span class="k">if</span><span class="p">(</span><span class="nx">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">12</span><span class="p">)</span> <span class="c1">// PTRACE_GETREGS
+</span></span></span><span class="line"><span class="ln">10</span><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">      <span class="nx">pending_getregs_ptr</span> <span class="o">=</span> <span class="nx">args</span><span class="p">[</span><span class="mi">3</span><span class="p">];</span> 
+</span></span><span class="line"><span class="ln">12</span><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl">    <span class="k">if</span><span class="p">(</span><span class="nx">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">13</span><span class="p">)</span> <span class="c1">// PTRACE_SETREGS
+</span></span></span><span class="line"><span class="ln">14</span><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl">      <span class="k">for</span><span class="p">(</span><span class="kd">let</span> <span class="nx">reg</span> <span class="k">in</span> <span class="nx">all_registers</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl">      <span class="p">{</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">        <span class="kd">let</span> <span class="nx">value</span> <span class="o">=</span> <span class="nx">args</span><span class="p">[</span><span class="mi">3</span><span class="p">].</span><span class="nx">add</span><span class="p">(</span><span class="nx">all_registers</span><span class="p">[</span><span class="nx">reg</span><span class="p">]).</span><span class="nx">readU64</span><span class="p">().</span><span class="nx">toNumber</span><span class="p">();</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">        <span class="kd">let</span> <span class="nx">value_to_compare</span> <span class="o">=</span> <span class="nx">saved_getregs</span><span class="p">[</span><span class="nx">reg</span><span class="p">];</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl">        <span class="k">if</span><span class="p">(</span><span class="nx">value</span> <span class="o">!==</span> <span class="nx">value_to_compare</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">        <span class="p">{</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">          <span class="nx">log</span><span class="p">(</span><span class="sb">`Register </span><span class="si">${</span><span class="nx">reg</span><span class="si">}</span><span class="sb"> 0x</span><span class="si">${</span><span class="nx">value_to_compare</span><span class="p">.</span><span class="nx">toString</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span><span class="si">}</span><span class="sb"> changed to 0x</span><span class="si">${</span><span class="nx">value</span><span class="p">.</span><span class="nx">toString</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span><span class="si">}</span><span class="sb">`</span><span class="p">);</span>
+</span></span><span class="line"><span class="ln">22</span><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="ln">23</span><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="ln">24</span><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="ln">25</span><span class="cl">  <span class="p">},</span>
+</span></span><span class="line"><span class="ln">26</span><span class="cl">
+</span></span><span class="line"><span class="ln">27</span><span class="cl">  <span class="nx">onLeave</span><span class="p">(</span><span class="nx">log</span><span class="p">,</span> <span class="nx">retval</span><span class="p">,</span> <span class="nx">state</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="ln">28</span><span class="cl">    <span class="c1">// GETREGS buffer was fully filled by kernel here
+</span></span></span><span class="line"><span class="ln">29</span><span class="cl">    <span class="k">if</span><span class="p">(</span><span class="nx">pending_getregs_ptr</span> <span class="o">!==</span> <span class="kc">null</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">30</span><span class="cl">    <span class="p">{</span>
+</span></span><span class="line"><span class="ln">31</span><span class="cl">      <span class="k">for</span><span class="p">(</span><span class="kd">let</span> <span class="nx">reg</span> <span class="k">in</span> <span class="nx">all_registers</span><span class="p">)</span>
+</span></span><span class="line"><span class="ln">32</span><span class="cl">      <span class="p">{</span>
+</span></span><span class="line"><span class="ln">33</span><span class="cl">        <span class="nx">saved_getregs</span><span class="p">[</span><span class="nx">reg</span><span class="p">]</span> <span class="o">=</span> <span class="nx">pending_getregs_ptr</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="nx">all_registers</span><span class="p">[</span><span class="nx">reg</span><span class="p">]).</span><span class="nx">readU64</span><span class="p">().</span><span class="nx">toNumber</span><span class="p">();</span>
+</span></span><span class="line"><span class="ln">34</span><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="ln">35</span><span class="cl">      <span class="nx">pending_getregs_ptr</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">36</span><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="ln">37</span><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="ln">38</span><span class="cl"><span class="p">});</span></span></span></code></pre></div><p>And the output :</p>
+<p><img src="/images/wiki/wiki_nanomites/frida-trace.png" alt="frida-trace"></p>
+<p>We can easily know that :</p>
+<ul>
+<li><strong>RAX</strong> = 0x3b</li>
+<li><strong>RDI</strong> = 0x7ffcf9e230cb</li>
+<li><strong>RSI</strong> has not changed its value (but we don&rsquo;t know its value yet)</li>
+<li><strong>RDX</strong> = 0x0</li>
+</ul>
+<p>That could be some register loading for a <code>syscall</code>, especially <code>execve()</code> (because <strong>RAX</strong> = 0x3b).</p>
+<h2 id="dynamically-read-child-memory-to-guess-arguments-of-syscall">Dynamically read child memory to guess arguments of syscall</h2>
+<p>Because we suspect <code>execve()</code> to be called, let&rsquo;s trace every call to this syscall using <code>bpftrace</code> : it will attach a live eBPF probe to the kernel&rsquo;s <code>execve</code> syscall entry point so that we can read the <code>filename</code> argument (<strong>RDI</strong> register) :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Bash" data-lang="Bash"><span class="line"><span class="ln">1</span><span class="cl"><span class="m">1</span>
+</span></span><span class="line"><span class="ln">2</span><span class="cl">sudo bpftrace -e <span class="s1">&#39;tracepoint:syscalls:sys_enter_execve { printf(&#34;%d %s %s\n&#34;, pid, comm, str(args-&gt;filename)); }&#39;</span></span></span></code></pre></div><p>and after executing the binary in an other shell :</p>
+<p><img src="/images/wiki/wiki_nanomites/bpftrace.png" alt="bpftrace"></p>
+<p>We finally read the string value of <strong>RDI</strong> register which is <strong>&quot;/bin/id&quot;</strong>.</p>
+<blockquote>
+<p>Note that we extract the argument from <strong>child</strong> process that was originally tagged as <strong>&ldquo;undebuggable&rdquo;</strong> but it implies to do a dynamic analysis of the program&hellip;</p>
+</blockquote>
+<h2 id="pros-and-cons-of-using-nanomites">Pros and Cons of using nanomites</h2>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: center">Pros</th>
+          <th style="text-align: center">Cons</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: center">Makes debugging, reversing and memory dumping painful</td>
+          <td style="text-align: center">Painful to implement and not portable (in this case with <code>ptrace</code>)</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">Good obfuscation technique where real logic is split between <strong>parent</strong> and <strong>child</strong></td>
+          <td style="text-align: center">Lack of performance due to context switching from <code>ptrace</code> syscall and catched signals</td>
+      </tr>
+  </tbody>
+</table>
 <script>
 
 
