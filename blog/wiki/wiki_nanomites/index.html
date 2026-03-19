@@ -37,7 +37,7 @@
   
   <meta itemprop="name" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello">
   <meta itemprop="description" content="INT3 isn’t a breakpoint : it’s just a nanomite saying hello">
-  <meta itemprop="wordCount" content="1150">
+  <meta itemprop="wordCount" content="1248">
 
 <meta name="referrer" content="no-referrer-when-downgrade" />
 
@@ -86,7 +86,7 @@
 </blockquote>
 <h2 id="how-does-it-work-">How does it work ?</h2>
 <p>Let&rsquo;s clarify this with a diagram :</p>
-<p><img src="/images/wiki/wiki_nanomites/nanomites_diagram.png" alt="nanomites_diagram"></p>
+<p><img src="/images/wiki/wiki_nanomites/nanomites_diagram.png" alt="50TOKENWIDTHnanomites_diagram"></p>
 <ul>
 <li><strong>Step 1</strong> : The <strong>parent</strong> process forks itself to spawn a <strong>child</strong> process with <code>fork()</code> syscall/LIBC function</li>
 <li><strong>Step 2</strong> : The <strong>child</strong> process allows its <strong>parent</strong> to trace it using <code>ptrace(PTRACE_TRACEME)</code> : no any other process can trace the <strong>child</strong> since the <strong>parent</strong> acts like a debugger</li>
@@ -174,9 +174,9 @@ To learn more about POSIX signals, see the <a href="https://www.man7.org/linux/m
 </span></span><span class="line"><span class="ln">63</span><span class="cl">    <span class="n">pid</span> <span class="o">=</span> <span class="nf">fork</span><span class="p">();</span> <span class="c1">// fork parent process to spawn child process
 </span></span></span><span class="line"><span class="ln">64</span><span class="cl">    <span class="p">(</span><span class="n">pid</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">?</span> <span class="nf">child_run</span><span class="p">()</span> <span class="o">:</span> <span class="nf">parent_trace</span><span class="p">();</span>
 </span></span><span class="line"><span class="ln">65</span><span class="cl"><span class="p">}</span></span></span></code></pre></div><p>After compiling, let&rsquo;s execute this binary :</p>
-<p><img src="/images/wiki/wiki_nanomites/execution.png" alt="execution"></p>
+<p><img src="/images/wiki/wiki_nanomites/execution.png" alt="70TOKENWIDTHexecution"></p>
 <p>Here is the diagram of what&rsquo;s happening in the code :</p>
-<p><img src="/images/wiki/wiki_nanomites/example_diagram.png" alt="example_diagram"></p>
+<p><img src="/images/wiki/wiki_nanomites/example_diagram.png" alt="40TOKENWIDTHexample_diagram"></p>
 <p>Sounds complicated but it is not :</p>
 <ul>
 <li>The <strong>parent</strong> process modifies <strong>child</strong> registers depending on which signal is sent by the <strong>child</strong> : <code>SIGTRAP</code>, <code>SIGSEGV</code> and <code>SIGFPE</code></li>
@@ -186,7 +186,7 @@ To learn more about POSIX signals, see the <a href="https://www.man7.org/linux/m
 <p>But what is <code>buffer+11</code> ?</p>
 <p><img src="/images/wiki/wiki_nanomites/python_calculus.png" alt="python_calculus"></p>
 <h2 id="not-debuggable-">Not debuggable ?</h2>
-<p>Let&rsquo;s try to debug this program using <code>strace</code> :</p>
+<p>Let&rsquo;s try to debug this program using <a href="https://man7.org/linux/man-pages/man1/strace.1.html">strace</a> :</p>
 <p><img src="/images/wiki/wiki_nanomites/strace.png" alt="strace"></p>
 <p>It is still possible to see registers value when using <code>PTRACE_SETREGS</code> from <strong>parent</strong> process but it doesn&rsquo;t show <code>execve</code> called from <strong>child</strong>.</p>
 <blockquote>
@@ -197,7 +197,7 @@ To learn more about POSIX signals, see the <a href="https://www.man7.org/linux/m
 <p>The debugging stops after the first signal because <code>gdb</code> uses <code>ptrace</code> itself, which conflicts with the <strong>parent&rsquo;s</strong> <code>ptrace</code> control of the <strong>child</strong>.</p>
 <p>Debugging the <strong>child</strong> process is hard. But debugging the <strong>parent</strong> process is still possible.</p>
 <h2 id="dynamic-and-partial-analysis-of-nanomites-parent-perspective">Dynamic and partial analysis of nanomites (parent perspective)</h2>
-<p><code>frida-trace</code> could help us knowing which <strong>child</strong> process registers were modified between <code>PTRACE_GETREGS</code> and <code>PTRACE_SETREGS</code> using this script (to write inside <code>__handlers__/libc.so.6/ptrace.js</code>):</p>
+<p><a href="https://frida.re/docs/frida-trace/">frida-trace</a> could help us knowing which <strong>child</strong> process registers were modified between <code>PTRACE_GETREGS</code> and <code>PTRACE_SETREGS</code> using this script (to write inside <code>__handlers__/libc.so.6/ptrace.js</code>):</p>
 
 
 
@@ -241,7 +241,7 @@ To learn more about POSIX signals, see the <a href="https://www.man7.org/linux/m
 </span></span><span class="line"><span class="ln">36</span><span class="cl">    <span class="p">}</span>
 </span></span><span class="line"><span class="ln">37</span><span class="cl">  <span class="p">}</span>
 </span></span><span class="line"><span class="ln">38</span><span class="cl"><span class="p">});</span></span></span></code></pre></div><p>And the output :</p>
-<p><img src="/images/wiki/wiki_nanomites/frida-trace.png" alt="frida-trace"></p>
+<p><img src="/images/wiki/wiki_nanomites/frida-trace.png" alt="150TOKENWIDTHfrida-trace"></p>
 <p>We can easily know that :</p>
 <ul>
 <li><strong>RAX</strong> = 0x3b</li>
@@ -249,20 +249,26 @@ To learn more about POSIX signals, see the <a href="https://www.man7.org/linux/m
 <li><strong>RSI</strong> has not changed its value (but we don&rsquo;t know its value yet)</li>
 <li><strong>RDX</strong> = 0x0</li>
 </ul>
-<p>That could be some register loading for a <code>syscall</code>, especially <code>execve()</code> (because <strong>RAX</strong> = 0x3b).</p>
-<h2 id="dynamically-read-child-memory-to-guess-arguments-of-syscall">Dynamically read child memory to guess arguments of syscall</h2>
-<p>Because we suspect <code>execve()</code> to be called, let&rsquo;s trace every call to this syscall using <code>bpftrace</code> : it will attach a live eBPF probe to the kernel&rsquo;s <code>execve</code> syscall entry point so that we can read the <code>filename</code> argument (<strong>RDI</strong> register) :</p>
+<p><strong>RAX</strong> = 0x3b and <strong>RDI</strong> pointing to a userspace buffer sounds like a syscall : <code>execve()</code>.</p>
+<h2 id="can-we-trace-child-syscalls-">Can we trace child syscalls ?</h2>
+<p>Yes, using <a href="https://bpftrace.org">bpftrace</a> tool. But before, let&rsquo;s outline how <code>strace</code> works :</p>
+<p><img src="/images/wiki/wiki_nanomites/strace-works.png" alt="strace-works"></p>
+<p><code>strace</code> attaches to the <strong>parent</strong> process in userspace and follows the <code>fork()</code>.<br>
+It is itself a tracer process and uses <code>ptrace()</code> : if the <strong>parent</strong> is already a tracer of the <strong>child</strong> (which is the case), then it creates conflicts and the <strong>child</strong> can&rsquo;t be traced.</p>
+<p>How does <code>bpftrace</code> work ?</p>
+<p><img src="/images/wiki/wiki_nanomites/bpftrace-works.png" alt="bpftrace-works"></p>
+<p><code>bpftrace</code> doesn&rsquo;t attach itself to any userland process but it uses a custom <strong>eBPF VM</strong> inside kernelspace that attach live eBPF probes to multiple kernel objects <em>(kprobes, kretprobes, tracepoints, uprobes, uretprobes, perf events, &hellip;)</em></p>
+<p>Because we suspect <code>execve()</code> to be called, let&rsquo;s trace it using <code>bpftrace</code> so that we can hook all <code>sys_enter_execve()</code> call from kernel and read the <code>filename</code> argument (in <strong>RDI</strong> register) :</p>
 
 
 
 
 
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-Bash" data-lang="Bash"><span class="line"><span class="ln">1</span><span class="cl"><span class="m">1</span>
-</span></span><span class="line"><span class="ln">2</span><span class="cl">sudo bpftrace -e <span class="s1">&#39;tracepoint:syscalls:sys_enter_execve { printf(&#34;%d %s %s\n&#34;, pid, comm, str(args-&gt;filename)); }&#39;</span></span></span></code></pre></div><p>and after executing the binary in an other shell :</p>
+<pre tabindex="0"><code>sudo bpftrace -e &#39;tracepoint:syscalls:sys_enter_execve { printf(&#34;%d %s %s\n&#34;, pid, comm, str(args-&gt;filename)); }&#39;</code></pre><p>and after executing the binary in an other shell :</p>
 <p><img src="/images/wiki/wiki_nanomites/bpftrace.png" alt="bpftrace"></p>
 <p>We finally read the string value of <strong>RDI</strong> register which is <strong>&quot;/bin/id&quot;</strong>.</p>
 <blockquote>
-<p>Note that we extract the argument from <strong>child</strong> process that was originally tagged as <strong>&ldquo;undebuggable&rdquo;</strong> but it implies to do a dynamic analysis of the program&hellip;</p>
+<p>Note that <strong>bpftrace</strong> is very useful to trace any kernel call from userspace process (even from nanomites) but it requires to execute it : do not forget to use a secured environment (like a virtual machine) if you&rsquo;re doing malware analysis&hellip;</p>
 </blockquote>
 <h2 id="pros-and-cons-of-using-nanomites">Pros and Cons of using nanomites</h2>
 <table>
@@ -379,6 +385,24 @@ for(let i=0;i<all_codeblocks.length;i++)
     ToCtitle.style = 'color: rgb(255, 0, 85);';
 
     divToC.parentNode.insertBefore(ToCtitle, divToC);
+
+
+    let all_images = document.getElementsByTagName("img");
+    for(let i=0;i<all_images.length;i++)
+    {
+        if(all_images[i].alt.indexOf("TOKENWIDTH") != -1)
+        {
+            let delim = all_images[i].alt.indexOf("TOKENWIDTH");
+            let val = parseInt(all_images[i].alt.slice(0,delim),10);
+            all_images[i].alt = all_images[i].alt.slice(delim+10,all_images[i].alt.length);
+  
+            all_images[i].style = "width:"+val+"% !important;max-width: 100% !important;";
+        }
+        else
+        {
+            all_images[i].style = "max-width: 75% !important;";
+        }
+    }
 
 </script>
 
