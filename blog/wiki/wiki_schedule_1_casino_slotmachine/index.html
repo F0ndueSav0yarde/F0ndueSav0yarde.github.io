@@ -37,7 +37,7 @@
   
   <meta itemprop="name" content="SCHEDULE I : Broken casino slot machine">
   <meta itemprop="description" content="SCHEDULE I : Broken casino slot machine">
-  <meta itemprop="wordCount" content="1107">
+  <meta itemprop="wordCount" content="1105">
 
 <meta name="referrer" content="no-referrer-when-downgrade" />
 
@@ -149,7 +149,7 @@ But what is the probability of landing on a seven ? Let&rsquo;s do some reverse 
 </span></span><span class="line"><span class="ln">20</span><span class="cl">	<span class="kd">public</span> <span class="kd">static</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">GetRandomSymbol</span><span class="p">()</span> <span class="p">{</span> <span class="p">}</span>
 </span></span><span class="line"><span class="ln">21</span><span class="cl">
 </span></span><span class="line"><span class="ln">22</span><span class="cl">	<span class="c1">// RVA: 0x86C880 Offset: 0x86B080 VA: 0x18086C880</span>
-</span></span><span class="line"><span class="ln">23</span><span class="cl">	<span class="kd">private</span> <span class="kt">bool</span> <span class="n">IsFruit</span><span class="p">(</span><span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">symbol</span><span class="p">)</span> <span class="p">{</span> <span class="p">}</span></span></span></code></pre></div><p>It seems that <code>public static SlotMachine.ESymbol GetRandomSymbol() { }</code> is what I&rsquo;m looking for. I looked at decompiled code at <code>0x18086C2F0</code> virtual address in <strong>Ghidra</strong> :</p>
+</span></span><span class="line"><span class="ln">23</span><span class="cl">	<span class="kd">private</span> <span class="kt">bool</span> <span class="n">IsFruit</span><span class="p">(</span><span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">symbol</span><span class="p">)</span> <span class="p">{</span> <span class="p">}</span></span></span></code></pre></div><p>It seems that <code>public static SlotMachine.ESymbol GetRandomSymbol()</code> is what I&rsquo;m looking for. I looked at decompiled code at <code>0x18086C2F0</code> virtual address in <strong>Ghidra</strong> :</p>
 <p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/GhidraGetRandomSymbol.png" alt="100TOKENWIDTHGhidraGetRandomSymbol"></p>
 <p>These lines are interesting :</p>
 
@@ -206,7 +206,7 @@ But what is the probability of landing on a seven ? Let&rsquo;s do some reverse 
 <p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/windbg_listmodules.png" alt="90TOKENWIDTHwindbg_listmodules"></p>
 <p>The base address of <code>GameAssembly.dll</code> in memory is <code>0x7ffcd0a80000</code>.<br>
 The relative virtual address of <code>ScheduleOne.Casino::SlotMachine.GetRandomSymbol()</code> is <code>0x86C2F0</code><br>
-So its virtual address is <code>0x7ffcd0a80000 + 0x86C2F0 = 0x7ffcd12ec2f0</code> : this is where i will pu my breakpoint.</p>
+So its virtual address is <code>0x7ffcd0a80000 + 0x86C2F0 = 0x7ffcd12ec2f0</code> : this is where i will put my breakpoint.</p>
 <p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/windbg_debug.png" alt="windbg_debug"></p>
 <p>If my assumptions are correct, according to <code>enum SlotMachine.ESymbol</code> i should land on :</p>
 <ul>
