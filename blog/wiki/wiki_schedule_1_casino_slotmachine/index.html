@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta http-equiv="X-Clacks-Overhead" content="GNU Terry Pratchett" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SCHEDULE I : Broken casino slot machine | F0ndueSav0yarde</title>
+<meta name="title" content="SCHEDULE I : Broken casino slot machine" />
+<meta name="description" content="SCHEDULE I : Broken casino slot machine" />
+<meta name="author" content="" />
+<meta name="keywords" content="" />
+
+
+
+
+
+
+  
+  <meta property="og:url" content="https://f0nduesav0yarde.github.io/blog/wiki/wiki_schedule_1_casino_slotmachine/">
+  <meta property="og:site_name" content="F0ndueSav0yarde">
+  <meta property="og:title" content="SCHEDULE I : Broken casino slot machine">
+  <meta property="og:description" content="SCHEDULE I : Broken casino slot machine">
+  <meta property="og:locale" content="en_us">
+  <meta property="og:type" content="article">
+    <meta property="article:section" content="blog">
+
+
+  
+  
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="SCHEDULE I : Broken casino slot machine">
+  <meta name="twitter:description" content="SCHEDULE I : Broken casino slot machine">
+
+
+  
+  
+  <meta itemprop="name" content="SCHEDULE I : Broken casino slot machine">
+  <meta itemprop="description" content="SCHEDULE I : Broken casino slot machine">
+  <meta itemprop="wordCount" content="1107">
+
+<meta name="referrer" content="no-referrer-when-downgrade" />
+
+  
+  <link href="/original.min.css" rel="stylesheet">
+
+  
+    
+    <link href="/syntax.min.css" rel="stylesheet">
+  
+
+  
+
+  
+</head>
+
+<body>
+  <header><a class="skip-link" href="#main-content">Skip to main content</a>
+
+<a href="/" class="title"><h1>F0ndueSav0yarde</h1></a>
+<nav>
+
+
+
+
+
+
+
+</nav>
+</header>
+  <main id="main-content">
+
+<h1>SCHEDULE I : Broken casino slot machine</h1>
+
+
+<content>
+  <h2 id="context">Context</h2>
+<p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/image_game_title.jpg" alt="Schedule_1_image_title"></p>
+<p><a href="https://store.steampowered.com/app/3164500/Schedule_I/">Schedule I</a> is an open world crime simulator video game where players build a drug trafficking operation in a fictional city : It combines elements of economic simulation, tactical strategy, and dark comedy, allowing players to grow and sell various drugs.</p>
+<p>It is possible to make money in this game by selling drugs or playing at the casino.<br>
+By playing the slot machine several times, I realized that it was very easy to win the jackpot. So I asked myself: <em>&ldquo;But how does the slot machine work ?&rdquo;</em>.</p>
+<p>To answer this question, I had to reverse engineer the game.</p>
+<h2 id="prices-of-the-slot-machine">Prices of the slot machine</h2>
+<p>While playing, you can come across a <strong>lemon</strong>, a <strong>grape</strong>, a <strong>cherry</strong>, a <strong>watermelon</strong>, a <strong>bell</strong> and a <strong>seven</strong>.<br>
+Here are the prices :</p>
+<p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/prices.png" alt="SlotMachine_prices"></p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: center">Bonus</th>
+          <th style="text-align: center">Symbol</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: center">Initial bet multiplied by <strong>2</strong></td>
+          <td style="text-align: center">3 fruits of any kind</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">Initial bet multiplied by <strong>10</strong></td>
+          <td style="text-align: center">Same fruit 3 times</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">Initial bet multiplied by <strong>25</strong></td>
+          <td style="text-align: center">3 bells</td>
+      </tr>
+      <tr>
+          <td style="text-align: center">Initial bet multiplied by <strong>100</strong></td>
+          <td style="text-align: center">3 seven</td>
+      </tr>
+  </tbody>
+</table>
+<p>It would be VERY interesting to land on 3 seven to hit the jackpot (x100 bonus).<br>
+But what is the probability of landing on a seven ? Let&rsquo;s do some reverse engineering !</p>
+<h2 id="il2cppdumper-and-ghidra">Il2CppDumper and Ghidra</h2>
+<p><strong>Schedule I</strong> was created with the <strong>Unity</strong> game engine, that uses <strong>IL2CPP</strong>.</p>
+<p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/schema_il2cpp.png" alt="schema_il2cpp"></p>
+<p><strong>IL2CPP</strong> stands for <em>&ldquo;Intermediate Language to C++&rdquo;</em> : this is a scripting backend used in <strong>Unity</strong> that converts <strong>C#</strong> code into <strong>C++</strong> code for better performance and compatibility across different platforms. It is possible to extract metadata and restore <strong>.NET DLLs</strong> from <strong>IL2CPP</strong> binaries using <a href="https://github.com/Perfare/Il2CppDumper">Il2CppDumper</a> tool.</p>
+<p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/il2cppdumper.png" alt="90TOKENWIDTHil2cppdumper"></p>
+<p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/filesystem.png" alt="70TOKENWIDTHfilesystem"></p>
+<p>Then, reverse engineering becomes significantly easier in <a href="https://github.com/NationalSecurityAgency/ghidra">Ghidra</a> : <strong>IL2CPP</strong> provides <strong>Python</strong> scripts that load the dumped metadata directly into the decompiled <strong>C++</strong> native code.</p>
+<p>The <a href="https://github.com/Perfare/Il2CppDumper/blob/master/Il2CppDumper/ghidra_with_struct.py">ghidra_with_struct.py</a> script will apply function signatures and inject IL2CPP structures from generated <strong>script.json</strong>.</p>
+<h2 id="dumpcs">Dump.cs</h2>
+<p>I did a simple string search in <strong>dump.cs</strong> for <em>&ldquo;casino&rdquo;</em> and <em>slot machine</em> and I found these precious informations inside <code>ScheduleOne.Casino::SlotMachine</code> class :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-cs" data-lang="cs"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="m">93903</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="na">	[ServerRpc(RequireOwnership = False, RunLocally = True)]</span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl">	<span class="c1">// RVA: 0x86DAA0 Offset: 0x86C2A0 VA: 0x18086DAA0</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl">	<span class="kd">public</span> <span class="k">void</span> <span class="n">SendStartSpin</span><span class="p">(</span><span class="n">NetworkConnection</span> <span class="n">spinner</span><span class="p">,</span> <span class="kt">int</span> <span class="n">betAmount</span><span class="p">)</span> <span class="p">{</span> <span class="p">}</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl"><span class="na">
+</span></span></span><span class="line"><span class="ln"> 6</span><span class="cl"><span class="na">	[ObserversRpc(RunLocally = True)]</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">	<span class="c1">// RVA: 0x86E240 Offset: 0x86CA40 VA: 0x18086E240</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">	<span class="kd">public</span> <span class="k">void</span> <span class="n">StartSpin</span><span class="p">(</span><span class="n">NetworkConnection</span> <span class="n">spinner</span><span class="p">,</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span><span class="p">[]</span> <span class="n">symbols</span><span class="p">,</span> <span class="kt">int</span> <span class="n">betAmount</span><span class="p">)</span> <span class="p">{</span> <span class="p">}</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">
+</span></span><span class="line"><span class="ln">10</span><span class="cl">	<span class="c1">// RVA: 0x86C200 Offset: 0x86AA00 VA: 0x18086C200</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">	<span class="kd">private</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">EOutcome</span> <span class="n">EvaluateOutcome</span><span class="p">(</span><span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span><span class="p">[]</span> <span class="n">outcome</span><span class="p">)</span> <span class="p">{</span> <span class="p">}</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">
+</span></span><span class="line"><span class="ln">13</span><span class="cl">	<span class="c1">// RVA: 0x86C3E0 Offset: 0x86ABE0 VA: 0x18086C3E0</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">	<span class="kd">private</span> <span class="kt">int</span> <span class="n">GetWinAmount</span><span class="p">(</span><span class="n">SlotMachine</span><span class="p">.</span><span class="n">EOutcome</span> <span class="n">outcome</span><span class="p">,</span> <span class="kt">int</span> <span class="n">betAmount</span><span class="p">)</span> <span class="p">{</span> <span class="p">}</span>
+</span></span><span class="line"><span class="ln">15</span><span class="cl">
+</span></span><span class="line"><span class="ln">16</span><span class="cl">	<span class="c1">// RVA: 0x86BF20 Offset: 0x86A720 VA: 0x18086BF20</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl">	<span class="kd">private</span> <span class="k">void</span> <span class="n">DisplayOutcome</span><span class="p">(</span><span class="n">SlotMachine</span><span class="p">.</span><span class="n">EOutcome</span> <span class="n">outcome</span><span class="p">,</span> <span class="kt">int</span> <span class="n">winAmount</span><span class="p">)</span> <span class="p">{</span> <span class="p">}</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">
+</span></span><span class="line"><span class="ln">19</span><span class="cl">	<span class="c1">// RVA: 0x86C2F0 Offset: 0x86AAF0 VA: 0x18086C2F0</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">	<span class="kd">public</span> <span class="kd">static</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">GetRandomSymbol</span><span class="p">()</span> <span class="p">{</span> <span class="p">}</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">
+</span></span><span class="line"><span class="ln">22</span><span class="cl">	<span class="c1">// RVA: 0x86C880 Offset: 0x86B080 VA: 0x18086C880</span>
+</span></span><span class="line"><span class="ln">23</span><span class="cl">	<span class="kd">private</span> <span class="kt">bool</span> <span class="n">IsFruit</span><span class="p">(</span><span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">symbol</span><span class="p">)</span> <span class="p">{</span> <span class="p">}</span></span></span></code></pre></div><p>It seems that <code>public static SlotMachine.ESymbol GetRandomSymbol() { }</code> is what I&rsquo;m looking for. I looked at decompiled code at <code>0x18086C2F0</code> virtual address in <strong>Ghidra</strong> :</p>
+<p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/GhidraGetRandomSymbol.png" alt="100TOKENWIDTHGhidraGetRandomSymbol"></p>
+<p>These lines are interesting :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="ln">1</span><span class="cl"><span class="mi">31</span>
+</span></span><span class="line"><span class="ln">2</span><span class="cl">    <span class="n">lVar5</span> <span class="o">=</span> <span class="n">System</span><span class="p">.</span><span class="n">Enum</span><span class="err">$$</span><span class="nf">GetValues</span><span class="p">(</span><span class="n">uVar4</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="ln">3</span><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">lVar5</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="ln">4</span><span class="cl">      <span class="n">uVar3</span> <span class="o">=</span> <span class="n">System</span><span class="p">.</span><span class="n">Array</span><span class="err">$$</span><span class="nf">get_Length</span><span class="p">(</span><span class="n">lVar5</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="ln">5</span><span class="cl">      <span class="n">uVar4</span> <span class="o">=</span> <span class="n">UnityEngine</span><span class="p">.</span><span class="n">Random</span><span class="err">$$</span><span class="nf">RandomRangeInt</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">uVar3</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="ln">6</span><span class="cl">      <span class="k">return</span> <span class="n">uVar4</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">7</span><span class="cl">    <span class="p">}</span></span></span></code></pre></div><p>The function <code>UnityEngine.Random$$RandomRangeInt()</code> is responsible for choosing a random value inside <code>uVar4</code> enum object :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-C" data-lang="C"><span class="line"><span class="ln">1</span><span class="cl"><span class="mi">22</span>
+</span></span><span class="line"><span class="ln">2</span><span class="cl"><span class="n">uVar4</span> <span class="o">=</span> <span class="n">ScheduleOne</span><span class="p">.</span><span class="n">Casino</span><span class="p">.</span><span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol_var</span><span class="p">;</span></span></span></code></pre></div><p>which can be found in <strong>dump.cs</strong> :</p>
+
+
+
+
+
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-cs" data-lang="cs"><span class="line"><span class="ln"> 1</span><span class="cl"><span class="m">93734</span>
+</span></span><span class="line"><span class="ln"> 2</span><span class="cl"><span class="c1">// Namespace: </span>
+</span></span><span class="line"><span class="ln"> 3</span><span class="cl"><span class="kd">public</span> <span class="kd">enum</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="c1">// TypeDefIndex: 2440</span>
+</span></span><span class="line"><span class="ln"> 4</span><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="ln"> 5</span><span class="cl">	<span class="c1">// Fields</span>
+</span></span><span class="line"><span class="ln"> 6</span><span class="cl">	<span class="kd">public</span> <span class="kt">int</span> <span class="n">value__</span><span class="p">;</span> <span class="c1">// 0x0</span>
+</span></span><span class="line"><span class="ln"> 7</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">Cherry</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln"> 8</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">Lemon</span> <span class="p">=</span> <span class="m">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln"> 9</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">Grape</span> <span class="p">=</span> <span class="m">2</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">10</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">Watermelon</span> <span class="p">=</span> <span class="m">3</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">11</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">Bell</span> <span class="p">=</span> <span class="m">4</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">12</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">ESymbol</span> <span class="n">Seven</span> <span class="p">=</span> <span class="m">5</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">13</span><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="ln">14</span><span class="cl">
+</span></span><span class="line"><span class="ln">15</span><span class="cl"><span class="c1">// Namespace: </span>
+</span></span><span class="line"><span class="ln">16</span><span class="cl"><span class="kd">public</span> <span class="kd">enum</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">EOutcome</span> <span class="c1">// TypeDefIndex: 2441</span>
+</span></span><span class="line"><span class="ln">17</span><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="ln">18</span><span class="cl">	<span class="c1">// Fields</span>
+</span></span><span class="line"><span class="ln">19</span><span class="cl">	<span class="kd">public</span> <span class="kt">int</span> <span class="n">value__</span><span class="p">;</span> <span class="c1">// 0x0</span>
+</span></span><span class="line"><span class="ln">20</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">EOutcome</span> <span class="n">Jackpot</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">21</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">EOutcome</span> <span class="n">BigWin</span> <span class="p">=</span> <span class="m">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">22</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">EOutcome</span> <span class="n">SmallWin</span> <span class="p">=</span> <span class="m">2</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">23</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">EOutcome</span> <span class="n">MiniWin</span> <span class="p">=</span> <span class="m">3</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">24</span><span class="cl">	<span class="kd">public</span> <span class="kd">const</span> <span class="n">SlotMachine</span><span class="p">.</span><span class="n">EOutcome</span> <span class="n">NoWin</span> <span class="p">=</span> <span class="m">4</span><span class="p">;</span>
+</span></span><span class="line"><span class="ln">25</span><span class="cl"><span class="p">}</span></span></span></code></pre></div><h2 id="dynamic-analysis-with-windbg">Dynamic analysis with WinDBG</h2>
+<p>Let&rsquo;s see if the return value of <code>UnityEngine.Random$$RandomRangeInt()</code> impacts the choice of symbol in the slot machine using <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/">WinDBG</a>.</p>
+<p>I attached the debugger to the PID of <strong>Schedule I.exe</strong> process and listed all modules to look for base address :</p>
+<p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/windbg_listmodules.png" alt="90TOKENWIDTHwindbg_listmodules"></p>
+<p>The base address of <code>GameAssembly.dll</code> in memory is <code>0x7ffcd0a80000</code>.<br>
+The relative virtual address of <code>ScheduleOne.Casino::SlotMachine.GetRandomSymbol()</code> is <code>0x86C2F0</code><br>
+So its virtual address is <code>0x7ffcd0a80000 + 0x86C2F0 = 0x7ffcd12ec2f0</code> : this is where i will pu my breakpoint.</p>
+<p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/windbg_debug.png" alt="windbg_debug"></p>
+<p>If my assumptions are correct, according to <code>enum SlotMachine.ESymbol</code> i should land on :</p>
+<ul>
+<li><strong>3</strong> : Watermelon</li>
+<li><strong>3</strong> : Watermelon</li>
+<li><strong>1</strong> : Lemon</li>
+</ul>
+<p><img src="/images/wiki/wiki_schedule_1_casino_slotmachine/result.png" alt="result"></p>
+<p>Bingo !</p>
+<h2 id="calculation-of-probabilities">Calculation of probabilities</h2>
+<p>We know that <code>UnityEngine.Random$$RandomRangeInt(0,6)</code> function represents a <strong>uniform discrete distribution</strong> where the probability of each symbol is <strong>1/6</strong>.
+Because we need 3 symbols to get an outcome, the total number of all combinations is <code>6*6*6 = 216</code>.</p>
+<p>Here are the calculations :</p>
+<ul>
+<li><strong>3 fruits of any kind</strong> : 4 fruits from 6 symbols, so <code>4^3 = 64</code> counts possible. But 3 same fruits belongs to <strong>x10</strong> multiplier so there are <code>60</code> mixed fruit combos in total</li>
+<li><strong>Same fruit 3 times</strong> : 4 fruits from 6 symbols, so 4 counts possible.</li>
+<li><strong>3 bells</strong> : Only one possibility to have this result among the 216 totals.</li>
+<li><strong>3 seven</strong> : Only one possibility to have this result among the 216 totals.</li>
+<li><strong>No win</strong> : Substract all possible counts from all winning outcomes, so <code>216 - (60+4+1+1) = 150</code>.</li>
+</ul>
+<p>Here is the probability of each outcome :</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: center">Outcome</th>
+          <th style="text-align: center">Probability</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: center">3 fruits of any kind</td>
+          <td style="text-align: center"><code>60/216 ~ 27.78%</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">Same fruit 3 times</td>
+          <td style="text-align: center"><code>4/216 ~ 1.85%</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">3 bells</td>
+          <td style="text-align: center"><code>1/216 ~ 0.46%</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">3 seven</td>
+          <td style="text-align: center"><code>1/216 ~ 0.46%</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">No win</td>
+          <td style="text-align: center"><code>150/216 ~ 69.44%</code></td>
+      </tr>
+  </tbody>
+</table>
+<p>The probability of winning is roughly <strong>30.56 %</strong> and the probability of loosing is <strong>69.44 %</strong>.</p>
+<p>To get the <strong>RTP</strong> <em>(Return To Player)</em>, we sum each contribution where the contribution of each outcome is <code>Multiplier x Probability</code> :</p>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: center">Outcome</th>
+          <th style="text-align: center">Multiplier</th>
+          <th style="text-align: center">Probability</th>
+          <th style="text-align: center">Contribution</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: center">3 fruits of any kind</td>
+          <td style="text-align: center"><code>x2</code></td>
+          <td style="text-align: center"><code>60/216</code></td>
+          <td style="text-align: center"><code>~ 0.5556</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">Same fruit 3 times</td>
+          <td style="text-align: center"><code>x10</code></td>
+          <td style="text-align: center"><code>4/216</code></td>
+          <td style="text-align: center"><code>~ 0.1852</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">3 bells</td>
+          <td style="text-align: center"><code>x25</code></td>
+          <td style="text-align: center"><code>1/216</code></td>
+          <td style="text-align: center"><code>~ 0.1157</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">3 seven</td>
+          <td style="text-align: center"><code>x100</code></td>
+          <td style="text-align: center"><code>1/216</code></td>
+          <td style="text-align: center"><code>~ 0.4630</code></td>
+      </tr>
+      <tr>
+          <td style="text-align: center">No win</td>
+          <td style="text-align: center"><code>x0</code></td>
+          <td style="text-align: center"><code>150/216</code></td>
+          <td style="text-align: center"><code>0</code></td>
+      </tr>
+  </tbody>
+</table>
+<p>So <strong>RTP</strong> is <code>0.5556 + 0.1852 + 0.1157 + 0.4630 + 0</code> which is&hellip; wait &hellip; <code>1.3195</code> ???</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>Because of <strong>RTP</strong> roughly equals to <code>1.3195</code>, it theoretically means that for every <strong>$1</strong> bet you expect to get back <strong>$1.32</strong> on average.<br>
+All the casino slot machines are surprisingly <strong>player-favorable</strong> even if the probability of winning is only <strong>30.56 %</strong>.</p>
+<p><strong>You could theoretically become rich by automating the game on a slot machine via a script !</strong></p>
+<blockquote>
+<p>In reality, a slot machine’s <strong>RTP</strong> is always less than 1, since a higher value would mean the casino would lose money.</p>
+</blockquote>
+<script>
+
+
+</script>
+
+<script>
+var all_codeblocks = document.getElementsByClassName("chroma")
+for(let i=0;i<all_codeblocks.length;i++)
+{
+    all_lines_of_a_codeblock = all_codeblocks[i].getElementsByClassName("line");
+    let start_number = -1;
+    start_number = parseInt(all_lines_of_a_codeblock[0].getElementsByTagName("span")[2].innerHTML,10);
+    all_lines_of_a_codeblock[0].style.display = "none";    
+    for(let line=1;line<all_lines_of_a_codeblock.length;line++)
+    {
+        let diff = String(all_lines_of_a_codeblock.length).length - String(start_number).length;
+        if(diff > 0)
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = "<span style='visibility:hidden;'>" + "0".repeat(diff) + "</span>" + String(start_number);
+        }
+        else
+        {
+            all_lines_of_a_codeblock[line].getElementsByTagName("span")[0].innerHTML = String(start_number);
+        }
+        start_number = start_number + 1;
+    }
+}
+</script>
+
+<style>
+    progress {
+        appearance: none;
+        -webkit-appearance: none;
+        width:100px;
+        height:14px;
+        margin-bottom: 1px;
+    }
+    progress::-webkit-progress-bar {
+        background-color: #0f0f0f;
+    }
+
+    .progress-high::-webkit-progress-value { background-color: rgb(210, 0, 28); }
+    .progress-high::-webkit-progress-bar { border: 1px solid rgb(210, 0, 28);}
+    .progress-mid::-webkit-progress-value { background-color: rgb(212, 67, 0); }
+    .progress-mid::-webkit-progress-bar { border: 1px solid rgb(212, 67, 0); }
+    .progress-low::-webkit-progress-value { background-color: rgb(184, 178, 0); }
+    .progress-low::-webkit-progress-bar { border: 1px solid rgb(184, 178, 0); }
+    .progress-verylow::-webkit-progress-value { background-color: #008b07; }
+    .progress-verylow::-webkit-progress-bar { border: 1px solid #008b07; }
+
+    .progress-high::-moz-progress-bar { background-color: rgb(210, 0, 28); }
+    .progress-mid::-moz-progress-bar { background-color: rgb(212, 67, 0); }
+    .progress-low::-moz-progress-bar { background-color: rgb(184, 178, 0); }
+    .progress-verylow::-moz-progress-bar { background-color: #008b07; }
+    .progress-high { border: 1px solid rgb(210, 0, 28); background-color: #0f0f0f;}
+    .progress-mid { border: 1px solid rgb(212, 67, 0); background-color: #0f0f0f; }
+    .progress-low { border: 1px solid rgb(184, 178, 0); background-color: #0f0f0f;}
+    .progress-verylow { border: 1px solid #008b07; background-color: #0f0f0f;}
+</style>
+
+<script>
+    let all_content = document.getElementsByTagName("content")[0];
+    let all_strong = all_content.getElementsByTagName("strong")
+    if(all_strong.length > 1)
+    {
+        if(all_strong[1].innerHTML.slice(0,19) == "Difficulty : TOKEN_")
+        {
+            let difficulty = parseInt(all_strong[1].innerHTML.slice(19), 10);
+            all_strong[1].innerHTML = "Difficulty : ";
+            let progress_class = "";
+            if(difficulty>=0 && difficulty<=24){progress_class = "progress-verylow";}
+            else if(difficulty>=25 && difficulty<=49){progress_class = "progress-low";}
+            else if(difficulty>=50 && difficulty<=74){progress_class = "progress-mid";}
+            else if(difficulty>=75 && difficulty<=100){progress_class = "progress-high";}
+            all_strong[1].innerHTML = all_strong[1].innerHTML + "<progress class="+progress_class+" id='file' value='"+difficulty+"' max='100'></progress>";
+        }
+    }
+
+    let all_h2 = document.getElementsByTagName("h2");
+    let main_title = document.getElementsByTagName("h1")[1];
+    let divToC = document.createElement("div")
+    divToC.id = "tableOfContent";
+    divToC.style = "color: rgb(255, 0, 85);padding:15px;list-style:none;border: 1px solid rgb(255, 0, 85);";
+
+    for(let i=0;i<all_h2.length;i++)
+    {
+        divToC.innerHTML += "<li><a href='"+window.location.href+"#"+all_h2[i].id+"' style='color: rgb(255, 0, 85);text-decoration:none;'>"+all_h2[i].innerText+"</a></li>";
+    }
+
+    main_title.parentNode.insertBefore(divToC, main_title.nextSibling);
+
+    const ToCtitle = document.createElement('h2');
+    ToCtitle.textContent = 'Table of Contents';
+    ToCtitle.style = 'color: rgb(255, 0, 85);';
+
+    divToC.parentNode.insertBefore(ToCtitle, divToC);
+
+
+    let all_images = document.getElementsByTagName("img");
+    for(let i=0;i<all_images.length;i++)
+    {
+        if(all_images[i].alt.indexOf("TOKENWIDTH") != -1)
+        {
+            let delim = all_images[i].alt.indexOf("TOKENWIDTH");
+            let val = parseInt(all_images[i].alt.slice(0,delim),10);
+            all_images[i].alt = all_images[i].alt.slice(delim+10,all_images[i].alt.length);
+  
+            all_images[i].style = "width:"+val+"% !important;max-width: 100% !important;";
+        }
+        else
+        {
+            all_images[i].style = "max-width: 75% !important;";
+        }
+    }
+
+</script>
+
+</content>
+<p>
+  
+</p>
+
+
+
+
+  </main>
+  <footer></footer>
+
+    
+</body>
+
+</html>
